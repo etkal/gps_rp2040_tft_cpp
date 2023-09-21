@@ -61,7 +61,6 @@ public:
 typedef void (*sentenceCallback)(void* pCtx, string strSentence);
 typedef void (*gpsDataCallback)(void* pCtx, GPSData* pGPSData);
 
-
 class GPS
 {
 public:

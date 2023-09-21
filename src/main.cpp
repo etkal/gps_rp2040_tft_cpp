@@ -71,8 +71,6 @@ int main()
 {
     stdio_init_all();
 
-    printf("Running...\n");
-
     // Set up UART for GPS device
     uart_init(UART_DEVICE, UART_BAUD_RATE);
     gpio_set_function(PIN_UART_TX, GPIO_FUNC_UART);
@@ -80,16 +78,14 @@ int main()
     uart_set_hw_flow(UART_DEVICE, false, false);
     uart_set_format(UART_DEVICE, DATA_BITS, STOP_BITS, PARITY);
 
+    // Set up the TFT display
     spi_init(SPI_DEVICE, 40000000);
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
-    if (PIN_CS < 255) // optional
-    {
-        gpio_init(PIN_CS);
-        gpio_set_dir(PIN_CS, GPIO_OUT);
-        gpio_put(PIN_CS, 1);
-    }
+    gpio_init(PIN_CS);
+    gpio_set_dir(PIN_CS, GPIO_OUT);
+    gpio_put(PIN_CS, 1);
     gpio_init(PIN_DC);
     gpio_set_dir(PIN_DC, GPIO_OUT);
     gpio_init(PIN_RST);

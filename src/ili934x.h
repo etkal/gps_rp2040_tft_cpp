@@ -170,21 +170,15 @@ private:
     void _writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data = NULL, size_t dataLen = 0);
     inline void _cs_select()
     {
-        if (_cs < 255)
-        {
-            sleep_us(1);
-            gpio_put(_cs, 0); // Active low
-            sleep_us(15);
-        }
+        sleep_us(1);
+        gpio_put(_cs, 0); // Active low
+        sleep_us(15);
     }
     inline void _cs_deselect()
     {
-        if (_cs < 255)
-        {
-            sleep_us(1);
-            gpio_put(_cs, 1);
-            sleep_us(1);
-        }
+        sleep_us(1);
+        gpio_put(_cs, 1);
+        sleep_us(1);
     }
     inline void _command_select()
     {

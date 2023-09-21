@@ -49,9 +49,9 @@ public:
     LED(){};
     virtual ~LED(){};
 
-    virtual void init() = 0;
-    virtual void on()   = 0;
-    virtual void off()  = 0;
+    virtual void init()                             = 0;
+    virtual void on()                               = 0;
+    virtual void off()                              = 0;
     virtual void setPixel(uint idx, uint32_t color) = 0;
     virtual void setIgnore(std::vector<uint32_t> vIgnore){};
     void blink_ms(uint duration = 50, uint32_t color = led_white);
@@ -63,7 +63,7 @@ public:
     LED_pico(uint pin);
     virtual ~LED_pico();
 
-    void init() override {};
+    void init() override{};
     void on() override;
     void off() override;
     void setPixel(uint idx, uint32_t color) override;
