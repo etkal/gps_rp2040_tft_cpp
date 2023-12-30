@@ -86,9 +86,12 @@ ILI934X::ILI934X(spi_inst_t* spi,
 
 void ILI934X::reset()
 {
-    gpio_put(_rst, 0);
-    sleep_us(30);
     gpio_put(_rst, 1);
+    sleep_ms(100);
+    gpio_put(_rst, 0);
+    sleep_ms(100);
+    gpio_put(_rst, 1);
+    sleep_ms(100);
 }
 
 void ILI934X::init()
@@ -390,18 +393,19 @@ void ILI934X::show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     uint16_t _w = MIN(_width - x, MAX(1, w));
     uint16_t _h = MIN(_height - y, MAX(1, h));
 
-    uint8_t* pData8 = reinterpret_cast<uint8_t*>(buffer());
-    uint16_t fWidth = width(); // framebuf width
+    uint8_t* pSrcData8 = reinterpret_cast<uint8_t*>(buffer());
+    uint16_t fWidth    = width(); // framebuf width
 
     // This is the simplest, gets ~15fps.
     // _writeBlock(_x, _y, _x + _w - 1, _y + _h - 1);
     // for (uint16_t iy = _y; iy < _y + _h; ++iy) // Draw line by line
     // {
-    //     _data(&pData8[(iy * fWidth * 2) + _x], _w * 2);
+    //     _data(&pSrcData8[(iy * fWidth * 2) + _x], _w * 2);
     // }
 
     // This is more complicated, gets ~19fps.
-    uint16_t buf[_MAX_CHUNK_SIZE];
+    static uint16_t tgtBuffer[_MAX_CHUNK_SIZE];
+    uint8_t* pTgtData8     = reinterpret_cast<uint8_t*>(tgtBuffer);
     uint16_t linesPerChunk = _MAX_CHUNK_SIZE / _w;
     uint16_t numChunks     = _h / linesPerChunk;
     uint16_t linesLeftover = _h - numChunks * linesPerChunk;
@@ -411,18 +415,18 @@ void ILI934X::show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     {
         for (uint16_t iy = 0; iy < linesPerChunk; ++iy)
         {
-            uint nSrcOffset = _x + ((_y + (iy + nChunk * linesPerChunk)) * fWidth * 2);
-            memcpy((uint8_t*)buf + iy * _w * 2, &pData8[nSrcOffset], _w * 2);
+            uint nSrcOffset = ((_y + (iy + nChunk * linesPerChunk)) * fWidth * 2) + (_x * 2);
+            memcpy(pTgtData8 + iy * _w * 2, &pSrcData8[nSrcOffset], _w * 2);
         }
-        _data((uint8_t*)buf, linesPerChunk * _w * 2);
+        _data(pTgtData8, linesPerChunk * _w * 2);
     }
     // Leftover lines
     for (uint16_t iy = 0; iy < linesLeftover; ++iy)
     {
-        uint nSrcOffset = _x + ((_y + (iy + numChunks * linesPerChunk)) * fWidth * 2);
-        memcpy(buf + iy * _w * 2, &pData8[nSrcOffset], _w * 2);
+        uint nSrcOffset = ((_y + (iy + numChunks * linesPerChunk)) * fWidth * 2) + (_x * 2);
+        memcpy(pTgtData8 + iy * _w * 2, &pSrcData8[nSrcOffset], _w * 2);
     }
-    _data((uint8_t*)buf, linesLeftover * _w * 2);
+    _data(pTgtData8, linesLeftover * _w * 2);
 }
 
 void ILI934X::_write(uint8_t cmd, uint8_t* data, size_t dataLen)
