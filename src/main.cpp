@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Erik Tkal
+ * Copyright (c) 2024 Erik Tkal
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,7 @@
  * THE SOFTWARE.
  */
 
+#include <iostream>
 #include "gps_tft.h"
 
 #if defined(RASPBERRYPI_PICO_W)
@@ -104,34 +105,37 @@ int main()
 
 #if defined(USE_WS2812_PIN)
     LED* pLED = new LED_neo(1, USE_WS2812_PIN);
-    pLED->init();
-    pLED->setPixel(0, led_green);
+    pLED->Initialize();
+    pLED->SetPixel(0, led_green);
 #elif defined(PICO_DEFAULT_WS2812_PIN) && !defined(USE_LED_PIN)
     LED* pLED = new LED_neo(1, PICO_DEFAULT_WS2812_PIN);
-    pLED->init();
-    pLED->setPixel(0, led_green);
+    pLED->Initialize();
+    pLED->SetPixel(0, led_green);
 #elif defined(USE_LED_PIN)
     LED* pLED = new LED_pico(USE_LED_PIN);
-    pLED->setIgnore({led_red});
+    pLED->SetIgnore({led_red});
 #elif defined(PICO_DEFAULT_LED_PIN)
     LED* pLED = new LED_pico(PICO_DEFAULT_LED_PIN);
-    pLED->setIgnore({led_red});
+    pLED->SetIgnore({led_red});
 #elif defined(RASPBERRYPI_PICO_W)
     LED* pLED = new LED_pico_w(CYW43_WL_GPIO_LED_PIN);
-    pLED->setIgnore({led_red});
+    pLED->SetIgnore({led_red});
 #else
     LED* pLED = nullptr;
 #endif
     GPS* pGPS = new GPS(UART_DEVICE);
 
-    // Create the display.  ILI9341, w=320 h=240 rotate 270
-    ILI934X* pDisplay = new ILI934X(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, 320, 240, R270DEG, COLOUR_ORDER_BGR);
+    // Create the display.  ILI9341, rotate 270
+    ILI934X* pDisplay = new ILI934X(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
     sleep_ms(500);
 
     GPS_TFT* pDevice = new GPS_TFT(pDisplay, pGPS, pLED);
 
-    pDevice->init();
-    pDevice->run();
+    if (!pDevice->Initialize())
+    {
+        std::cout << "Failed to initialize the device" << std::endl;
+    }
+    pDevice->Run();
 
     return 0;
 }

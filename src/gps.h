@@ -1,7 +1,7 @@
 /*
  * GPS class
  *
- * (c) 2023 Erik Tkal
+ * (c) 2024 Erik Tkal
  *
  */
 
@@ -67,41 +67,35 @@ public:
     GPS(uart_inst_t* m_pUART);
     ~GPS();
 
-    void setSentenceCallback(void* pCtx, sentenceCallback pCB);
-    void setGpsDataCallback(void* pCtx, gpsDataCallback pCB);
-
-    void run();
-    uart_inst_t* getUART()
+    void SetSentenceCallback(void* pCtx, sentenceCallback pCB);
+    void SetGpsDataCallback(void* pCtx, gpsDataCallback pCB);
+    void Run();
+    bool HasPosition()
+    {
+        return m_bFixPos;
+    }
+    bool ExternalAntenna()
+    {
+        return m_bExternalAntenna;
+    }
+    uart_inst_t* GetUART()
     {
         return m_pUART;
     }
+
+private:
     void processSentence(string strSentence);
     bool validateSentence(string& strSentence);
     string checkSum(const string& strSentence);
     string convertToDegrees(string strRaw, int width);
-    bool hasTime()
-    {
-        return m_bFixTime;
-    }
-    bool hasPosition()
-    {
-        return m_bFixPos;
-    }
-    bool externalAntenna()
-    {
-        return m_bExternalAntenna;
-    }
 
-private:
     uart_inst_t* m_pUART;
-
     bool m_bFixTime;
     bool m_bFixPos;
     bool m_bExternalAntenna;
     bool m_bGSVInProgress;
     string m_strNumGSV;
     uint64_t m_nSatListTime;
-
     GPSData* m_pGPSData;
     SatList m_vSatListPersistent;
 

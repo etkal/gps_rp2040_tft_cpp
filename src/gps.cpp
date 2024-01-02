@@ -1,7 +1,7 @@
 /*
  * GPS class
  *
- * Copyright (c) 2023 Erik Tkal
+ * Copyright (c) 2024 Erik Tkal
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 
 #include <queue>
+#include <iostream>
 #include <iomanip>
 
 #include "gps.h"
@@ -40,7 +41,7 @@ static queue<string> sg_sentenceQueue;
 // RX interrupt handler
 static void on_uart_rx()
 {
-    uart_inst_t* pUART = sg_pGPS->getUART();
+    uart_inst_t* pUART = sg_pGPS->GetUART();
     while (uart_is_readable(pUART))
     {
         char ch             = uart_getc(pUART);
@@ -81,23 +82,20 @@ GPS::~GPS()
     delete m_pGPSData;
 }
 
-void GPS::setSentenceCallback(void* pCtx, sentenceCallback pCB)
+void GPS::SetSentenceCallback(void* pCtx, sentenceCallback pCB)
 {
-    printf("In GPS::setSentenceCallback()\n");
     m_pSentenceCtx      = pCtx;
     m_pSentenceCallBack = pCB;
 }
 
-void GPS::setGpsDataCallback(void* pCtx, gpsDataCallback pCB)
+void GPS::SetGpsDataCallback(void* pCtx, gpsDataCallback pCB)
 {
-    printf("In GPS::setGpsDataCallback()\n");
     m_pGpsDataCtx      = pCtx;
     m_pGpsDataCallback = pCB;
 }
 
-void GPS::run()
+void GPS::Run()
 {
-    printf("In GPS::run()\n");
     // Set up GPS
     uart_set_fifo_enabled(m_pUART, true);
     sg_pGPS     = this; // Allow interrupt handler to call us back
@@ -144,14 +142,12 @@ void GPS::run()
 
 void GPS::processSentence(string strSentence)
 {
-    printf("%s", strSentence.c_str());
-
     // Validate the string
     if (!validateSentence(strSentence))
     {
-        printf("Failed to validate NMEA sentence\n");
         return;
     }
+    std::cout << strSentence.c_str() << std::endl;
 
     if (NULL != m_pSentenceCallBack)
     {
@@ -348,19 +344,16 @@ bool GPS::validateSentence(string& strSentence)
     size_t nLen = strSentence.size();
     if (nLen < 1 || strSentence[0] != '$')
     {
-        printf("Sentence does not start with $\n");
         return false;
     }
     if (nLen < 6 || strSentence.substr(nLen - 2, 2) != "\r\n" || strSentence[nLen - 5] != '*')
     {
-        printf("Sentence does not end with *XX\\r\\n\n");
         return false;
     }
     string specifiedCheck  = strSentence.substr(nLen - 4, 2);
     string calculatedCheck = checkSum(strSentence.substr(1, nLen - 6));
     if (calculatedCheck != specifiedCheck)
     {
-        printf("Failed to validate checksum. Specified: %s, Expected: %s\n", specifiedCheck.c_str(), calculatedCheck.c_str());
         return false;
     }
 
