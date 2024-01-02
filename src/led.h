@@ -1,7 +1,7 @@
 /*
  * Pico LED class
  *
- * (c) 2023 Erik Tkal
+ * (c) 2024 Erik Tkal
  *
  */
 
@@ -49,12 +49,12 @@ public:
     LED(){};
     virtual ~LED(){};
 
-    virtual void init()                             = 0;
-    virtual void on()                               = 0;
-    virtual void off()                              = 0;
-    virtual void setPixel(uint idx, uint32_t color) = 0;
-    virtual void setIgnore(std::vector<uint32_t> vIgnore){};
-    void blink_ms(uint duration = 50, uint32_t color = led_white);
+    virtual void Initialize()                       = 0;
+    virtual void On()                               = 0;
+    virtual void Off()                              = 0;
+    virtual void SetPixel(uint idx, uint32_t color) = 0;
+    virtual void SetIgnore(std::vector<uint32_t> vIgnore){};
+    void Blink_ms(uint duration = 50, uint32_t color = led_white);
 };
 
 class LED_pico : public LED
@@ -63,11 +63,11 @@ public:
     LED_pico(uint pin);
     virtual ~LED_pico();
 
-    void init() override{};
-    void on() override;
-    void off() override;
-    void setPixel(uint idx, uint32_t color) override;
-    void setIgnore(std::vector<uint32_t> vIgnore) override;
+    void Initialize() override{};
+    void On() override;
+    void Off() override;
+    void SetPixel(uint idx, uint32_t color) override;
+    void SetIgnore(std::vector<uint32_t> vIgnore) override;
 
 protected:
     uint m_nPin;
@@ -81,10 +81,10 @@ public:
     LED_neo(uint numLEDs, uint pin, uint powerPin = WS2812_POWER_PIN, bool bIsRGBW = false);
     virtual ~LED_neo();
 
-    void init() override;
-    void on() override;
-    void off() override;
-    void setPixel(uint idx, uint32_t color) override;
+    void Initialize() override;
+    void On() override;
+    void Off() override;
+    void SetPixel(uint idx, uint32_t color) override;
 
 private:
     uint m_nPin;
@@ -101,7 +101,7 @@ public:
     LED_pico_w(uint pin);
     virtual ~LED_pico_w();
 
-    void on();
-    void off();
+    void On();
+    void Off();
 };
 #endif

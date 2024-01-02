@@ -1,7 +1,7 @@
 /*
  * Pico ILI934x TFT display driver class
  *
- * (c) 2023 Erik Tkal
+ * (c) 2024 Erik Tkal
  *
  * Modified from Darren Horrocks version to fix command/data/select timing, as well
  * as removing the GFXFont support.
@@ -47,6 +47,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <list>
 #include <pico/stdlib.h>
 #include <hardware/spi.h>
 #include <hardware/gpio.h>
@@ -117,7 +118,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define ILI934X_HW_WIDTH  240
 #define ILI934X_HW_HEIGHT 320
 
-enum ILI934X_ROTATION
+enum ROTATION
 {
     R0DEG,
     R90DEG,
@@ -129,72 +130,99 @@ enum ILI934X_ROTATION
     MIRRORED270DEG
 };
 
-class ILI934X : public Framebuf
+enum QUADRANT
+{
+    FULL_FRAME,
+    LEFT_HALF,
+    RIGHT_HALF,
+    UPPER_HALF,
+    LOWER_HALF,
+    UPPER_LEFT,
+    LOWER_LEFT,
+    UPPER_RIGHT,
+    LOWER_RIGHT
+};
+
+class ILI934X
 {
 public:
-    ILI934X(spi_inst_t* spi,
-            uint8_t cs,
-            uint8_t dc,
-            uint8_t rst,
-            uint16_t width            = 240,
-            uint16_t height           = 320,
-            ILI934X_ROTATION rotation = R0DEG,
-            uint8_t colour_order      = COLOUR_ORDER_BGR);
+    ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
+    ~ILI934X();
 
-    void reset();
-    void init();
-    void setRotation(ILI934X_ROTATION rotation = R0DEG);
+    void Reset();
+    bool Initialize();
+    void Clear(uint16_t colour = COLOUR_BLACK); // Clear entire display via hardware access
+    void SetQuadrant(QUADRANT eQuadrant);
+    std::list<QUADRANT> GetQuadrants();
+    void Show();
+    void Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
-    //    void setPixel(uint16_t x, uint16_t y, uint16_t colour);
-    //    void fillRect(uint16_t x, uint16_t y, uint16_t h, uint16_t w, uint16_t colour);
-    //    void drawLine(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
-    //    void drawCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color);
+    void SetPixel(int x, int y, uint16_t color);
+    uint16_t GetPixel(int x, int y);
+    void FillRect(int x, int y, int w, int h, uint16_t color);
 
-    void clear(uint16_t colour = COLOUR_BLACK);
-    //    void blit(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t *bltBuf);
-    //    void show(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
-    void show();
-    void show(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
+    void Fill(uint16_t color);
+    void HLine(int x, int y, int w, uint16_t color);
+    void VLine(int x, int y, int h, uint16_t color);
+    void Rect(int x, int y, int w, int h, uint16_t color, bool bFill = false);
+    void Line(int x1, int y1, int x2, int y2, uint16_t color);
+    void Ellipse(int cx, int cy, int xradius, int yradius, uint16_t color, bool bFill = false, uint8_t mask = ELLIPSE_MASK_ALL);
+    void Text(const char* str, int x, int y, uint16_t color);
 
-    // uint16_t width() {return _width;}
-    // uint16_t height() {return _height;}
-
-    static inline uint16_t colour565(uint8_t r, uint8_t g, uint8_t b)
+    static inline uint16_t Colour565(uint8_t r, uint8_t g, uint8_t b)
     {
         return (((r >> 3) & 0x1f) << 11) | (((g >> 2) & 0x3f) << 5) | ((b >> 3) & 0x1f);
     }
 
+    uint16_t Width()
+    {
+        return m_dispWidth;
+    }
+    uint16_t Height()
+    {
+        return m_dispHeight;
+    }
+
 private:
+    void setRotation(ROTATION rotation = R0DEG);
+    void adjustPoint(int& x, int& y)
+    {
+        x -= m_xoff;
+        y -= m_yoff;
+    }
     void _write(uint8_t cmd, uint8_t* data = NULL, size_t dataLen = 0);
     void _data(uint8_t* data, size_t dataLen = 0);
     void _writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data = NULL, size_t dataLen = 0);
     inline void _cs_select()
     {
-        gpio_put(_cs, 0); // Active low
+        gpio_put(m_cs, 0); // Active low
     }
     inline void _cs_deselect()
     {
-        gpio_put(_cs, 1);
+        gpio_put(m_cs, 1);
     }
     inline void _command_select()
     {
-        gpio_put(_dc, 0);
+        gpio_put(m_dc, 0);
     }
     inline void _data_select()
     {
-        gpio_put(_dc, 1);
+        gpio_put(m_dc, 1);
     }
 
 private:
-    spi_inst_t* _spi = NULL;
-    uint8_t _cs;
-    uint8_t _dc;
-    uint8_t _rst;
-    uint16_t _width;
-    uint16_t _height;
-    ILI934X_ROTATION _rotation;
-    uint16_t _init_width;
-    uint16_t _init_height;
-    uint8_t _init_rotation;
-    uint8_t _colour_order;
+    spi_inst_t* m_spi = NULL;
+    uint8_t m_cs;
+    uint8_t m_dc;
+    uint8_t m_rst;
+    uint16_t m_dispWidth;
+    uint16_t m_dispHeight;
+    ROTATION m_rotation;
+    uint8_t m_madctl;
+    Framebuf* m_pFramebuf;
+    uint16_t m_nQuadrants;
+    std::list<QUADRANT> quadrantList;
+    QUADRANT m_eQuadrant;
+    uint16_t m_xoff;
+    uint16_t m_yoff;
 };

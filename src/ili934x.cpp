@@ -1,7 +1,7 @@
 /*
  * Pico ILI934x TFT display driver class
  *
- * (c) 2023 Erik Tkal
+ * (c) 2024 Erik Tkal
  *
  * Modified from Darren Horrocks version to fix command/data/select timing, as well
  * as removing the GFXFont support.
@@ -43,9 +43,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "stdlib.h"
 #include "stdio.h"
+#include <iostream>
+#include <cstring>
+
 #include "ili934x.h"
 #include "hardware/gpio.h"
-#include <cstring>
 
 #ifndef pgm_read_byte
 #define pgm_read_byte(addr) (*(const uint8_t*)(addr))
@@ -64,40 +66,76 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 // Note: cs is optional, set to 255 if not used
-ILI934X::ILI934X(spi_inst_t* spi,
-                 uint8_t cs,
-                 uint8_t dc,
-                 uint8_t rst,
-                 uint16_t width,
-                 uint16_t height,
-                 ILI934X_ROTATION rotation,
-                 uint8_t colour_order)
-    : Framebuf(width, height, RGB565, true)
+ILI934X::ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
+    : m_spi(spi),
+      m_cs(cs),
+      m_dc(dc),
+      m_rst(rst),
+      m_dispWidth(0),
+      m_dispHeight(0),
+      m_rotation(rotation),
+      m_madctl(COLOUR_ORDER_BGR),
+      m_pFramebuf(nullptr),
+      m_nQuadrants(4),
+      m_eQuadrant(FULL_FRAME),
+      m_xoff(0),
+      m_yoff(0)
 {
-    _spi        = spi;
-    _cs         = cs;
-    _dc         = dc;
-    _rst        = rst;
-    _init_width = _width = ILI934X_HW_WIDTH;
-    _init_height = _height = ILI934X_HW_HEIGHT;
-    _init_rotation = _rotation = rotation;
-    _colour_order              = colour_order;
 }
 
-void ILI934X::reset()
+ILI934X::~ILI934X()
 {
-    gpio_put(_rst, 1);
+    if (nullptr != m_pFramebuf)
+    {
+        delete m_pFramebuf;
+    }
+}
+
+void ILI934X::Reset()
+{
+    gpio_put(m_rst, 1);
     sleep_ms(100);
-    gpio_put(_rst, 0);
+    gpio_put(m_rst, 0);
     sleep_ms(100);
-    gpio_put(_rst, 1);
+    gpio_put(m_rst, 1);
     sleep_ms(100);
 }
 
-void ILI934X::init()
+bool ILI934X::Initialize()
 {
-    reset();
+    setRotation(m_rotation); // Sets width, height and MADCTL value
 
+    m_pFramebuf = new Framebuf();
+    switch (m_nQuadrants)
+    {
+    case 1:
+        m_pFramebuf->Initialize(m_dispWidth, m_dispHeight, RGB565, bReverseBytes);
+        quadrantList = {FULL_FRAME};
+        break;
+    case 2:
+        if (m_dispWidth > m_dispHeight)
+        {
+            m_pFramebuf->Initialize(m_dispWidth / 2, m_dispHeight, RGB565, bReverseBytes);
+            quadrantList = {LEFT_HALF, RIGHT_HALF};
+        }
+        else
+        {
+            m_pFramebuf->Initialize(m_dispWidth, m_dispHeight / 2, RGB565, bReverseBytes);
+            quadrantList = {UPPER_HALF, LOWER_HALF};
+        }
+        break;
+    case 4:
+        m_pFramebuf->Initialize(m_dispWidth / 2, m_dispHeight / 2, RGB565, bReverseBytes);
+        quadrantList = {UPPER_LEFT, LOWER_LEFT, UPPER_RIGHT, LOWER_RIGHT};
+        break;
+    default:
+        break;
+    }
+
+    // Reset the display
+    Reset();
+
+    // Set the registers
     _write(_RDDSDR, (uint8_t*)"\x03\x80\x02", 3);
     _write(_PWCRTLB, (uint8_t*)"\x00\xc1\x30", 3);
     _write(_PWRONCTRL, (uint8_t*)"\x64\x03\x12\x81", 4);
@@ -109,9 +147,7 @@ void ILI934X::init()
     _write(_PWCTRL2, (uint8_t*)"\x10", 1);
     _write(_VMCTRL1, (uint8_t*)"\x3e\x28", 2);
     _write(_VMCTRL2, (uint8_t*)"\x86", 1);
-
-    setRotation(_rotation);
-
+    _write(_MADCTL, &m_madctl, 1);
     _write(_PIXSET, (uint8_t*)"\x55", 1);
     _write(_FRMCTR1, (uint8_t*)"\x00\x18", 2);
     _write(_DISCTRL, (uint8_t*)"\x08\x82\x27", 3);
@@ -122,279 +158,180 @@ void ILI934X::init()
 
     _write(_SLPOUT);
     _write(_DISPON);
+    return true;
 }
 
-void ILI934X::setRotation(ILI934X_ROTATION rotation)
+void ILI934X::Clear(uint16_t colour)
 {
-    uint8_t mode = MADCTL_MX | _colour_order;
+    uint16_t buffer = __builtin_bswap16(colour);
+    uint8_t* pData  = reinterpret_cast<uint8_t*>(&buffer);
+    _writeBlock(0, 0, m_dispWidth - 1, m_dispHeight - 1);
+    for (uint16_t iy = 0; iy < m_dispHeight; ++iy)
+    {
+        for (uint16_t ix = 0; ix < m_dispWidth; ++ix)
+        {
+            _data(pData, 2);
+        }
+    }
+}
+
+void ILI934X::SetQuadrant(QUADRANT eQuadrant)
+{
+    m_eQuadrant = eQuadrant;
+    switch (m_eQuadrant)
+    {
+    case FULL_FRAME:
+    case LEFT_HALF:
+    case UPPER_HALF:
+    case UPPER_LEFT:
+        m_xoff = 0;
+        m_yoff = 0;
+        break;
+    case RIGHT_HALF:
+    case UPPER_RIGHT:
+        m_xoff = m_dispWidth / 2;
+        m_yoff = 0;
+        break;
+    case LOWER_HALF:
+    case LOWER_LEFT:
+        m_xoff = 0;
+        m_yoff = m_dispHeight / 2;
+        break;
+    case LOWER_RIGHT:
+        m_xoff = m_dispWidth / 2;
+        m_yoff = m_dispHeight / 2;
+        break;
+    }
+}
+
+std::list<QUADRANT> ILI934X::GetQuadrants()
+{
+    return quadrantList;
+}
+
+void ILI934X::setRotation(ROTATION rotation)
+{
     switch (rotation)
     {
     case R0DEG:
-        mode          = MADCTL_MX | _colour_order;
-        this->_width  = this->_init_width;
-        this->_height = this->_init_height;
+        m_madctl |= MADCTL_MX;
+        m_dispWidth  = ILI934X_HW_WIDTH;
+        m_dispHeight = ILI934X_HW_HEIGHT;
         break;
     case R90DEG:
-        mode          = MADCTL_MV | _colour_order;
-        this->_width  = this->_init_height;
-        this->_height = this->_init_width;
+        m_madctl |= MADCTL_MV;
+        m_dispWidth  = ILI934X_HW_HEIGHT;
+        m_dispHeight = ILI934X_HW_WIDTH;
         break;
     case R180DEG:
-        mode          = MADCTL_MY | _colour_order;
-        this->_width  = this->_init_width;
-        this->_height = this->_init_height;
+        m_madctl |= MADCTL_MY;
+        m_dispWidth  = ILI934X_HW_WIDTH;
+        m_dispHeight = ILI934X_HW_HEIGHT;
         break;
     case R270DEG:
-        mode          = MADCTL_MY | MADCTL_MX | MADCTL_MV | _colour_order;
-        this->_width  = this->_init_height;
-        this->_height = this->_init_width;
+        m_madctl |= (MADCTL_MY | MADCTL_MX | MADCTL_MV);
+        m_dispWidth  = ILI934X_HW_HEIGHT;
+        m_dispHeight = ILI934X_HW_WIDTH;
         break;
     case MIRRORED0DEG:
-        mode          = MADCTL_MY | MADCTL_MX | _colour_order;
-        this->_width  = this->_init_width;
-        this->_height = this->_init_height;
+        m_madctl |= MADCTL_MY | MADCTL_MX;
+        m_dispWidth  = ILI934X_HW_WIDTH;
+        m_dispHeight = ILI934X_HW_HEIGHT;
         break;
     case MIRRORED90DEG:
-        mode          = MADCTL_MX | MADCTL_MV | _colour_order;
-        this->_width  = this->_init_height;
-        this->_height = this->_init_width;
+        m_madctl |= (MADCTL_MX | MADCTL_MV);
+        m_dispWidth  = ILI934X_HW_HEIGHT;
+        m_dispHeight = ILI934X_HW_WIDTH;
         break;
     case MIRRORED180DEG:
-        mode          = _colour_order;
-        this->_width  = this->_init_width;
-        this->_height = this->_init_height;
+        m_dispWidth  = ILI934X_HW_WIDTH;
+        m_dispHeight = ILI934X_HW_HEIGHT;
         break;
     case MIRRORED270DEG:
-        mode          = MADCTL_MY | MADCTL_MV | _colour_order;
-        this->_width  = this->_init_height;
-        this->_height = this->_init_width;
+        m_madctl |= (MADCTL_MY | MADCTL_MV);
+        m_dispWidth  = ILI934X_HW_HEIGHT;
+        m_dispHeight = ILI934X_HW_WIDTH;
         break;
     }
-
-    uint8_t buffer[1] = {mode};
-    _write(_MADCTL, (uint8_t*)buffer, 1);
 }
 
-#if 0 // Use Framebuffer instead
-void ILI934X::setPixel(uint16_t x, uint16_t y, uint16_t colour)
+void ILI934X::SetPixel(int x, int y, uint16_t color)
 {
-    if (x < 0 || x >= _width || y < 0 || y >= _height)
-        return;
-
-    uint16_t buffer[1];
-    buffer[0] = __builtin_bswap16(colour);
-
-    _writeBlock(x, y, x, y, (uint8_t *)buffer, 2);
+    adjustPoint(x, y);
+    return m_pFramebuf->setpixel(x, y, color);
 }
 
-void ILI934X::fillRect(uint16_t x, uint16_t y, uint16_t h, uint16_t w, uint16_t colour)
+uint16_t ILI934X::GetPixel(int x, int y)
 {
-    uint16_t _x = MIN(_width - 1, MAX(0, x));
-    uint16_t _y = MIN(_height - 1, MAX(0, y));
-    uint16_t _w = MIN(_width - x, MAX(1, w));
-    uint16_t _h = MIN(_height - y, MAX(1, h));
-
-    uint16_t buffer[_MAX_CHUNK_SIZE];
-    for (int x = 0; x < _MAX_CHUNK_SIZE; x++)
-    {
-        buffer[x] = __builtin_bswap16(colour);
-    }
-
-    uint16_t totalChunks = (uint16_t)((double)(w * h) / _MAX_CHUNK_SIZE);
-    uint16_t remaining = (uint16_t)((w * h) % _MAX_CHUNK_SIZE);
-
-    _writeBlock(_x, _y, _x + _w - 1, _y + _h - 1);
-
-    for (uint16_t i = 0; i < totalChunks; i++)
-    {
-        _data((uint8_t *)buffer, _MAX_CHUNK_SIZE * 2);
-    }
-
-    if (remaining > 0)
-    {
-        _data((uint8_t *)buffer, remaining * 2);
-    }
+    adjustPoint(x, y);
+    return m_pFramebuf->getpixel(x, y);
 }
 
-void ILI934X::drawLine(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color)
+void ILI934X::FillRect(int x, int y, int w, int h, uint16_t color)
 {
-    uint16_t _x0 = x0;
-    uint16_t _y0 = y0;
-    uint16_t _x1 = x1;
-    uint16_t _y1 = y1;
-
-    int16_t steep = abs(_y1 - _y0) > abs(_x1 - _x0);
-    if (steep)
-    {
-        __swap_int(_x0, _y0);
-        __swap_int(_x1, _y1);
-    }
-
-    if (x0 > x1)
-    {
-        __swap_int(_x0, _x1);
-        __swap_int(_y0, _y1);
-    }
-
-    int16_t dx, dy;
-    dx = _x1 - _x0;
-    dy = abs(_y1 - _y0);
-
-    int16_t err = dx / 2;
-    int16_t ystep;
-
-    if (_y0 < _y1)
-    {
-        ystep = 1;
-    }
-    else
-    {
-        ystep = -1;
-    }
-
-    for (; _x0 <= _x1; _x0++)
-    {
-        if (steep)
-        {
-            setPixel(_y0, _x0, color);
-        }
-        else
-        {
-            setPixel(_x0, _y0, color);
-        }
-        err -= dy;
-        if (err < 0)
-        {
-            _y0 += ystep;
-            err += dx;
-        }
-    }
+    adjustPoint(x, y);
+    return m_pFramebuf->fillrect(x, y, w, h, color);
 }
 
-void ILI934X::drawCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color)
+void ILI934X::Fill(uint16_t color)
 {
-    int16_t f = 1 - r;
-    int16_t ddF_x = 1;
-    int16_t ddF_y = -2 * r;
-    int16_t x = 0;
-    int16_t y = r;
-
-    setPixel(x0, y0 + r, color);
-    setPixel(x0, y0 - r, color);
-    setPixel(x0 + r, y0, color);
-    setPixel(x0 - r, y0, color);
-
-    while (x < y)
-    {
-        if (f >= 0)
-        {
-            y--;
-            ddF_y += 2;
-            f += ddF_y;
-        }
-        x++;
-        ddF_x += 2;
-        f += ddF_x;
-
-        setPixel(x0 + x, y0 + y, color);
-        setPixel(x0 - x, y0 + y, color);
-        setPixel(x0 + x, y0 - y, color);
-        setPixel(x0 - x, y0 - y, color);
-        setPixel(x0 + y, y0 + x, color);
-        setPixel(x0 - y, y0 + x, color);
-        setPixel(x0 + y, y0 - x, color);
-        setPixel(x0 - y, y0 - x, color);
-    }
+    return m_pFramebuf->fill(color);
 }
 
-void ILI934X::blit(uint16_t x, uint16_t y, uint16_t h, uint16_t w, uint16_t *bltBuf)
+void ILI934X::HLine(int x, int y, int w, uint16_t color)
 {
-    uint16_t _x = MIN(_width - 1, MAX(0, x));
-    uint16_t _y = MIN(_height - 1, MAX(0, y));
-    uint16_t _w = MIN(_width - x, MAX(1, w));
-    uint16_t _h = MIN(_height - y, MAX(1, h));
-
-    uint16_t totalChunks = (uint16_t)((double)(w * h) / _MAX_CHUNK_SIZE);
-    uint16_t remaining = (uint16_t)((w * h) % _MAX_CHUNK_SIZE);
-    uint16_t written = 0;
-
-    uint16_t buffer[_MAX_CHUNK_SIZE];
-
-    for (uint16_t iy = 0; iy < _h; iy++)
-    {
-        for (uint16_t ix = 0; ix < _w; ix++)
-        {
-            uint16_t idx = ix + iy * w - written;
-            if (idx >= _MAX_CHUNK_SIZE)
-            {
-                _data((uint8_t *)buffer, _MAX_CHUNK_SIZE * 2);
-                written += _MAX_CHUNK_SIZE;
-                idx -= _MAX_CHUNK_SIZE;
-            }
-
-            buffer[idx] = bltBuf[ix + iy * w]; // get pixel from blt buffer
-        }
-    }
-
-    remaining = w * h - written;
-
-    if (remaining > 0)
-    {
-        _data((uint8_t *)buffer, remaining * 2);
-    }
+    adjustPoint(x, y);
+    return m_pFramebuf->hline(x, y, w, color);
 }
 
-void ILI934X::clear(uint16_t colour)
+void ILI934X::VLine(int x, int y, int h, uint16_t color)
 {
-    // fillrect(0, 0, _height, _width, colour);
-    fillRect(0, 0, _height, _width, colour);
+    adjustPoint(x, y);
+    return m_pFramebuf->vline(x, y, h, color);
 }
 
-void ILI934X::fillRect(uint16_t x, uint16_t y, uint16_t h, uint16_t w, uint16_t colour)
+void ILI934X::Rect(int x, int y, int w, int h, uint16_t color, bool bFill)
 {
-    uint16_t _x = MIN(_width - 1, MAX(0, x));
-    uint16_t _y = MIN(_height - 1, MAX(0, y));
-    uint16_t _w = MIN(_width - x, MAX(1, w));
-    uint16_t _h = MIN(_height - y, MAX(1, h));
-
-    uint16_t buffer[_MAX_CHUNK_SIZE];
-    for (int x = 0; x < _MAX_CHUNK_SIZE; x++)
-    {
-        buffer[x] = __builtin_bswap16(colour);
-    }
-
-    uint16_t totalChunks = (uint16_t)((double)(w * h) / _MAX_CHUNK_SIZE);
-    uint16_t remaining = (uint16_t)((w * h) % _MAX_CHUNK_SIZE);
-
-    _writeBlock(_x, _y, _x + _w - 1, _y + _h - 1);
-
-    for (uint16_t i = 0; i < totalChunks; i++)
-    {
-        _data((uint8_t *)buffer, _MAX_CHUNK_SIZE * 2);
-    }
-
-    if (remaining > 0)
-    {
-        _data((uint8_t *)buffer, remaining * 2);
-    }
-}
-#endif
-
-
-void ILI934X::show()
-{
-    show(0, 0, width(), height());
+    adjustPoint(x, y);
+    return m_pFramebuf->rect(x, y, w, h, color, bFill);
 }
 
-void ILI934X::show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
+void ILI934X::Line(int x1, int y1, int x2, int y2, uint16_t color)
 {
-    uint16_t _x = MIN(_width - 1, MAX(0, x));
-    uint16_t _y = MIN(_height - 1, MAX(0, y));
-    uint16_t _w = MIN(_width - x, MAX(1, w));
-    uint16_t _h = MIN(_height - y, MAX(1, h));
+    adjustPoint(x1, y1);
+    adjustPoint(x2, y2);
+    return m_pFramebuf->line(x1, y1, x2, y2, color);
+}
 
-    uint8_t* pSrcData8 = reinterpret_cast<uint8_t*>(buffer());
-    uint16_t fWidth    = width(); // framebuf width
+void ILI934X::Ellipse(int cx, int cy, int xradius, int yradius, uint16_t color, bool bFill, uint8_t mask)
+{
+    adjustPoint(cx, cy);
+    return m_pFramebuf->ellipse(cx, cy, xradius, yradius, color, bFill, mask);
+}
+
+void ILI934X::Text(const char* str, int x, int y, uint16_t color)
+{
+    adjustPoint(x, y);
+    return m_pFramebuf->text(str, x, y, color);
+}
+
+void ILI934X::Show()
+{
+    Show(0, 0, m_pFramebuf->width(), m_pFramebuf->height());
+}
+
+void ILI934X::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
+{
+    uint16_t disp_x = x + m_xoff;
+    uint16_t disp_y = y + m_yoff;
+
+    uint16_t _x = MIN(m_pFramebuf->width() - 1, MAX(0, x));
+    uint16_t _y = MIN(m_pFramebuf->height() - 1, MAX(0, y));
+    uint16_t _w = MIN(m_pFramebuf->width() - x, MAX(1, w));
+    uint16_t _h = MIN(m_pFramebuf->height() - y, MAX(1, h));
+
+    uint8_t* pSrcData8 = reinterpret_cast<uint8_t*>(m_pFramebuf->buffer());
+    uint16_t fWidth    = m_pFramebuf->width(); // framebuf width
 
     // This is the simplest, gets ~15fps.
     // _writeBlock(_x, _y, _x + _w - 1, _y + _h - 1);
@@ -410,7 +347,7 @@ void ILI934X::show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     uint16_t numChunks     = _h / linesPerChunk;
     uint16_t linesLeftover = _h - numChunks * linesPerChunk;
 
-    _writeBlock(_x, _y, _x + _w - 1, _y + _h - 1);
+    _writeBlock(disp_x, disp_y, disp_x + _w - 1, disp_y + _h - 1);
     for (uint16_t nChunk = 0; nChunk < numChunks; ++nChunk)
     {
         for (uint16_t iy = 0; iy < linesPerChunk; ++iy)
@@ -438,12 +375,12 @@ void ILI934X::_write(uint8_t cmd, uint8_t* data, size_t dataLen)
     uint8_t commandBuffer[1];
     commandBuffer[0] = cmd;
 
-    while (!spi_is_writable(_spi))
+    while (!spi_is_writable(m_spi))
     {
         sleep_us(1);
     }
 
-    spi_write_blocking(_spi, commandBuffer, 1);
+    spi_write_blocking(m_spi, commandBuffer, 1);
 
     if (data == NULL)
     {
@@ -462,7 +399,7 @@ void ILI934X::_data(uint8_t* data, size_t dataLen)
     _cs_select();
     _data_select();
 
-    spi_write_blocking(_spi, data, dataLen);
+    spi_write_blocking(m_spi, data, dataLen);
 
     _cs_deselect();
 }

@@ -1,7 +1,7 @@
 /*
  * GPS using TFT display
  *
- * (c) 2023 Erik Tkal
+ * (c) 2024 Erik Tkal
  *
  */
 
@@ -28,14 +28,14 @@ public:
     GPS_TFT(ILI934X* pDisplay, GPS* pGPS, LED* pLED, float GMToffset = 0.0);
     ~GPS_TFT();
 
-    void init();
-    void run();
+    bool Initialize();
+    void Run();
 
 private:
     static void sentenceCB(void* pCtx, string strSentence);
     static void gpsDataCB(void* pCtx, GPSData* pGPSData);
 
-    void UpdateUI(GPSData* pGPSData);
+    void updateUI(GPSData* pGPSData);
     void drawSatGrid(uint x, uint y, uint width, uint height, uint nRings = 3);
     void drawSatGridRadial(uint xCenter, uint yCenter, uint radius, uint nRings = 3);
     void drawBarGraph(uint x, uint y, uint width, uint height);
