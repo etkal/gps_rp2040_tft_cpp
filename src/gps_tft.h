@@ -28,7 +28,7 @@ public:
     GPS_TFT(ILI934X* pDisplay, GPS* pGPS, LED* pLED, float GMToffset = 0.0);
     ~GPS_TFT();
 
-    bool Initialize();
+    void Initialize();
     void Run();
 
 private:
@@ -49,7 +49,7 @@ private:
                        uint16_t color     = COLOUR_WHITE,
                        uint16_t fillColor = COLOUR_WHITE);
     int linePos(int nLine);
-    void drawText(int nLine, string strText, uint16_t color = COLOUR_WHITE, bool bRightAlign = true, uint nRightPad = 0);
+    void drawText(int nLine, string strText, uint16_t color = COLOUR_WHITE, bool bRightAlign = true, uint nPadding = 0);
 
     ILI934X* m_pDisplay;
     GPS* m_pGPS;
