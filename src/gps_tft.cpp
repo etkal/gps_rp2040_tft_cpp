@@ -50,20 +50,20 @@ GPS_TFT::~GPS_TFT()
     delete m_pLED;
 }
 
-bool GPS_TFT::Initialize()
+void GPS_TFT::Initialize()
 {
     m_pDisplay->Reset();
-    if (!m_pDisplay->Initialize())
-    {
-        std::cout << "Failed to initialize the display" << std::endl;
-        return false;
-    }
+    m_pDisplay->Initialize();
 
     m_pDisplay->Clear(COLOUR_BLACK);
 
+    m_pDisplay->SetQuadrant(m_pDisplay->GetQuadrants().front());
+    m_pDisplay->Fill(COLOUR_BLACK);
+    drawText(0, "Waiting for GPS", COLOUR_WHITE, false, 0);
+    m_pDisplay->Show();
+
     m_pGPS->SetSentenceCallback(this, sentenceCB);
     m_pGPS->SetGpsDataCallback(this, gpsDataCB);
-    return true;
 }
 
 void GPS_TFT::Run()
@@ -105,12 +105,12 @@ void GPS_TFT::updateUI(GPSData* pGPSData)
     uint16_t nHeight = m_pDisplay->Height();
 
     // Temporary, for performance measurement on quadrant display
-    // absolute_time_t t0, t1, t2, t3, t4;
-    // t0 = get_absolute_time();
+    absolute_time_t t0, t1, t2, t3, t4;
+    t0 = get_absolute_time();
 
     for (auto nQuadrant : m_pDisplay->GetQuadrants())
     {
-        // t1 = get_absolute_time();
+        t1 = get_absolute_time();
 
         m_pDisplay->SetQuadrant(nQuadrant);
         m_pDisplay->Fill(COLOUR_BLACK);
@@ -138,23 +138,24 @@ void GPS_TFT::updateUI(GPSData* pGPSData)
         // Draw clock
         if (!pGPSData->strGPSTime.empty())
         {
-            drawClock(nWidth / 2, LINE_HEIGHT * PAD_CHARS_Y, LINE_HEIGHT * 6 / 2, pGPSData->strGPSTime);
+            uint radius = m_pDisplay->Width() <= 320 ? LINE_HEIGHT * 6 / 2 : LINE_HEIGHT * 10 / 2;
+            drawClock(nWidth / 2, LINE_HEIGHT * PAD_CHARS_Y, radius, pGPSData->strGPSTime);
         }
 
         // Draw bar graph
         drawBarGraph(nWidth / 2, nHeight / 2, nWidth / 2 - X_PAD, nHeight / 2 - Y_PAD);
 
-        // t2 = get_absolute_time();
+        t2 = get_absolute_time();
 
         // blit the framebuf to the display quadrant
         m_pDisplay->Show();
 
-        // t3 = get_absolute_time();
-        // std::cout << "Time to draw: " << absolute_time_diff_us(t1, t2) << " us" << std::endl;
-        // std::cout << "Time to show: " << absolute_time_diff_us(t2, t3) << " us" << std::endl;
+        t3 = get_absolute_time();
+        std::cout << "Time to draw: " << absolute_time_diff_us(t1, t2) << " us" << std::endl;
+        std::cout << "Time to show: " << absolute_time_diff_us(t2, t3) << " us" << std::endl;
     }
-    // t4 = get_absolute_time();
-    // std::cout << "Total frame draw time: " << absolute_time_diff_us(t0, t4) << " us" << std::endl << std::endl;
+    t4 = get_absolute_time();
+    std::cout << "Total frame draw time: " << absolute_time_diff_us(t0, t4) << " us" << std::endl << std::endl;
     m_pGPSData = NULL;
 }
 
@@ -312,10 +313,10 @@ int GPS_TFT::linePos(int nLine)
         return m_pDisplay->Height() + 1 + ((nLine - PAD_CHARS_Y) * LINE_HEIGHT);
 }
 
-void GPS_TFT::drawText(int nLine, string strText, uint16_t color, bool bRightAlign, uint nRightPad)
+void GPS_TFT::drawText(int nLine, string strText, uint16_t color, bool bRightAlign, uint nPadding)
 {
     int x = (!bRightAlign) ? 0 : m_pDisplay->Width() - (strText.length() * COL_WIDTH);
     int y = linePos(nLine);
-    x     = x - nRightPad;
+    x += bRightAlign ? -nPadding : nPadding;
     m_pDisplay->Text(strText.c_str(), x, y, color);
 }

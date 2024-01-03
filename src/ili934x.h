@@ -53,40 +53,40 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <hardware/gpio.h>
 #include "framebuf.h"
 
-#define _RDDSDR    0x0f // Read Display Self-Diagnostic Result
-#define _SLPOUT    0x11 // Sleep Out
-#define _GAMSET    0x26 // Gamma Set
-#define _DISPOFF   0x28 // Display Off
-#define _DISPON    0x29 // Display On
-#define _CASET     0x2a // Column Address Set
-#define _PASET     0x2b // Page Address Set
-#define _RAMWR     0x2c // Memory Write
-#define _RAMRD     0x2e // Memory Read
-#define _MADCTL    0x36 // Memory Access Control
-#define _VSCRSADD  0x37 // Vertical Scrolling Start Address
-#define _PIXSET    0x3a // Pixel Format Set
-#define _PWCTRLA   0xcb // Power Control A
-#define _PWCRTLB   0xcf // Power Control B
-#define _DTCTRLA   0xe8 // Driver Timing Control A
-#define _DTCTRLB   0xea // Driver Timing Control B
-#define _PWRONCTRL 0xed // Power on Sequence Control
-#define _PRCTRL    0xf7 // Pump Ratio Control
-#define _PWCTRL1   0xc0 // Power Control 1
-#define _PWCTRL2   0xc1 // Power Control 2
-#define _VMCTRL1   0xc5 // VCOM Control 1
-#define _VMCTRL2   0xc7 // VCOM Control 2
-#define _FRMCTR1   0xb1 // Frame Rate Control 1
-#define _DISCTRL   0xb6 // Display Function Control
-#define _ENA3G     0xf2 // Enable 3G
-#define _PGAMCTRL  0xe0 // Positive Gamma Control
-#define _NGAMCTRL  0xe1 // Negative Gamma Control
+#define _RDDSDR         0x0f // Read Display Self-Diagnostic Result
+#define _SLPOUT         0x11 // Sleep Out
+#define _GAMSET         0x26 // Gamma Set
+#define _DISPOFF        0x28 // Display Off
+#define _DISPON         0x29 // Display On
+#define _CASET          0x2a // Column Address Set
+#define _PASET          0x2b // Page Address Set
+#define _RAMWR          0x2c // Memory Write
+#define _RAMRD          0x2e // Memory Read
+#define _MADCTL         0x36 // Memory Access Control
+#define _VSCRSADD       0x37 // Vertical Scrolling Start Address
+#define _PIXSET         0x3a // Pixel Format Set
+#define _PWCTRLA        0xcb // Power Control A
+#define _PWCRTLB        0xcf // Power Control B
+#define _DTCTRLA        0xe8 // Driver Timing Control A
+#define _DTCTRLB        0xea // Driver Timing Control B
+#define _PWRONCTRL      0xed // Power on Sequence Control
+#define _PRCTRL         0xf7 // Pump Ratio Control
+#define _PWCTRL1        0xc0 // Power Control 1
+#define _PWCTRL2        0xc1 // Power Control 2
+#define _PWCTRL3        0xc2 // Power Control 3
+#define _VMCTRL1        0xc5 // VCOM Control 1
+#define _VMCTRL2        0xc7 // VCOM Control 2
+#define _FRMCTR1        0xb1 // Frame Rate Control 1
+#define _DISCTRL        0xb6 // Display Function Control
+#define _ENA3G          0xf2 // Enable 3G
+#define _PGAMCTRL       0xe0 // Positive Gamma Control
+#define _NGAMCTRL       0xe1 // Negative Gamma Control
+#define _DSPINVON       0x21 // Display Inversion On
 
-#define MADCTL_MY  0x80 ///< Bottom to top
-#define MADCTL_MX  0x40 ///< Right to left
-#define MADCTL_MV  0x20 ///< Reverse Mode
-#define MADCTL_ML  0x10 ///< LCD refresh Bottom to top
-// #define MADCTL_RGB 0x00 ///< Red-Green-Blue pixel order
-// #define MADCTL_BGR 0x08 ///< Blue-Green-Red pixel order
+#define MADCTL_MY       0x80 ///< Bottom to top
+#define MADCTL_MX       0x40 ///< Right to left
+#define MADCTL_MV       0x20 ///< Reverse Mode
+#define MADCTL_ML       0x10 ///< LCD refresh Bottom to top
 #define MADCTL_MH       0x04 ///< LCD refresh right to left
 
 #define MADCTL_RGB      0x00 ///< Red-Green-Blue pixel order
@@ -97,7 +97,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* Windows 16 colour pallet converted to 5-6-5 */
 #define COLOUR_BLACK      0x0000
 #define COLOUR_MAROON     0x8000
-#define COLOUR_GREEN      0x0400
+#define COLOUR_GREEN      0x07E0
 #define COLOUR_OLIVE      0x8400
 #define COLOUR_NAVY       0x0010
 #define COLOUR_PURPLE     0x8010
@@ -117,6 +117,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define ILI934X_HW_WIDTH  240
 #define ILI934X_HW_HEIGHT 320
+#define ILI948X_HW_WIDTH  320
+#define ILI948X_HW_HEIGHT 480
 
 enum ROTATION
 {
@@ -147,10 +149,10 @@ class ILI934X
 {
 public:
     ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
-    ~ILI934X();
+    virtual ~ILI934X();
 
-    void Reset();
-    bool Initialize();
+    virtual void Reset();
+    virtual void Initialize();
     void Clear(uint16_t colour = COLOUR_BLACK); // Clear entire display via hardware access
     void SetQuadrant(QUADRANT eQuadrant);
     std::list<QUADRANT> GetQuadrants();
@@ -183,15 +185,18 @@ public:
         return m_dispHeight;
     }
 
-private:
-    void setRotation(ROTATION rotation = R0DEG);
+protected:
+    void createFramebuf();
+    void setRotation(uint16_t screenWidth, uint16_t screenHeight, ROTATION rotation = R0DEG);
     void adjustPoint(int& x, int& y)
     {
         x -= m_xoff;
         y -= m_yoff;
     }
+    void _writeByte(uint8_t data);
     void _write(uint8_t cmd, uint8_t* data = NULL, size_t dataLen = 0);
-    void _data(uint8_t* data, size_t dataLen = 0);
+    virtual void _data(uint16_t data);
+    virtual void _data(uint8_t* data, size_t dataLen = 0);
     void _writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data = NULL, size_t dataLen = 0);
     inline void _cs_select()
     {
@@ -210,7 +215,7 @@ private:
         gpio_put(m_dc, 1);
     }
 
-private:
+protected:
     spi_inst_t* m_spi = NULL;
     uint8_t m_cs;
     uint8_t m_dc;
@@ -225,4 +230,18 @@ private:
     QUADRANT m_eQuadrant;
     uint16_t m_xoff;
     uint16_t m_yoff;
+};
+
+
+class ILI948X : public ILI934X
+{
+public:
+    ILI948X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
+    virtual ~ILI948X() = default;
+
+    void Reset() override;
+    void Initialize() override;
+
+private:
+    void _data(uint16_t data) override;
 };

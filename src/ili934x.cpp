@@ -76,7 +76,7 @@ ILI934X::ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION 
       m_rotation(rotation),
       m_madctl(COLOUR_ORDER_BGR),
       m_pFramebuf(nullptr),
-      m_nQuadrants(4),
+      m_nQuadrants(2),
       m_eQuadrant(FULL_FRAME),
       m_xoff(0),
       m_yoff(0)
@@ -91,6 +91,11 @@ ILI934X::~ILI934X()
     }
 }
 
+ILI948X::ILI948X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
+    : ILI934X(spi, cs, dc, rst, rotation)
+{
+}
+
 void ILI934X::Reset()
 {
     gpio_put(m_rst, 1);
@@ -101,36 +106,20 @@ void ILI934X::Reset()
     sleep_ms(100);
 }
 
-bool ILI934X::Initialize()
+void ILI948X::Reset()
 {
-    setRotation(m_rotation); // Sets width, height and MADCTL value
+    gpio_put(m_rst, 1);
+    sleep_ms(500);
+    gpio_put(m_rst, 0);
+    sleep_ms(500);
+    gpio_put(m_rst, 1);
+    sleep_ms(500);
+}
 
-    m_pFramebuf = new Framebuf();
-    switch (m_nQuadrants)
-    {
-    case 1:
-        m_pFramebuf->Initialize(m_dispWidth, m_dispHeight, RGB565, bReverseBytes);
-        quadrantList = {FULL_FRAME};
-        break;
-    case 2:
-        if (m_dispWidth > m_dispHeight)
-        {
-            m_pFramebuf->Initialize(m_dispWidth / 2, m_dispHeight, RGB565, bReverseBytes);
-            quadrantList = {LEFT_HALF, RIGHT_HALF};
-        }
-        else
-        {
-            m_pFramebuf->Initialize(m_dispWidth, m_dispHeight / 2, RGB565, bReverseBytes);
-            quadrantList = {UPPER_HALF, LOWER_HALF};
-        }
-        break;
-    case 4:
-        m_pFramebuf->Initialize(m_dispWidth / 2, m_dispHeight / 2, RGB565, bReverseBytes);
-        quadrantList = {UPPER_LEFT, LOWER_LEFT, UPPER_RIGHT, LOWER_RIGHT};
-        break;
-    default:
-        break;
-    }
+void ILI934X::Initialize()
+{
+    setRotation(ILI934X_HW_WIDTH, ILI934X_HW_HEIGHT, m_rotation); // Sets width, height and MADCTL value
+    createFramebuf();
 
     // Reset the display
     Reset();
@@ -158,7 +147,69 @@ bool ILI934X::Initialize()
 
     _write(_SLPOUT);
     _write(_DISPON);
-    return true;
+}
+
+void ILI948X::Initialize()
+{
+    setRotation(ILI948X_HW_WIDTH, ILI948X_HW_HEIGHT, m_rotation); // Sets width, height and MADCTL value
+    createFramebuf();
+
+    // Reset the display
+    Reset();
+
+    // Set the registers
+
+    _write(_DSPINVON);
+    _write(_PWCTRL3);
+    _data(0x33);
+    _write(_VMCTRL1);
+    _data(0x00);
+    _data(0x1e);
+    _data(0x80);
+    _write(_FRMCTR1);
+    _data(0xb0);
+    _write(_PGAMCTRL);
+    _data(0x00);
+    _data(0x13);
+    _data(0x18);
+    _data(0x04);
+    _data(0x0F);
+    _data(0x06);
+    _data(0x3a);
+    _data(0x56);
+    _data(0x4d);
+    _data(0x03);
+    _data(0x0a);
+    _data(0x06);
+    _data(0x30);
+    _data(0x3e);
+    _data(0x0f);
+    _write(_NGAMCTRL);
+    _data(0x00);
+    _data(0x13);
+    _data(0x18);
+    _data(0x01);
+    _data(0x11);
+    _data(0x06);
+    _data(0x38);
+    _data(0x34);
+    _data(0x4d);
+    _data(0x06);
+    _data(0x0d);
+    _data(0x0b);
+    _data(0x31);
+    _data(0x37);
+    _data(0x0f);
+    _write(_PIXSET);
+    _data(0x55);
+    _write(_SLPOUT);
+    sleep_ms(120);
+    _write(_DISPON);
+    _write(_DISCTRL);
+    _data(0x00);
+    _data(0x02);
+    _write(_MADCTL);
+    _data(m_madctl);
 }
 
 void ILI934X::Clear(uint16_t colour)
@@ -209,48 +260,78 @@ std::list<QUADRANT> ILI934X::GetQuadrants()
     return quadrantList;
 }
 
-void ILI934X::setRotation(ROTATION rotation)
+void ILI934X::setRotation(uint16_t screenWidth, uint16_t screenHeight, ROTATION rotation)
 {
     switch (rotation)
     {
     case R0DEG:
         m_madctl |= MADCTL_MX;
-        m_dispWidth  = ILI934X_HW_WIDTH;
-        m_dispHeight = ILI934X_HW_HEIGHT;
+        m_dispWidth  = screenWidth;
+        m_dispHeight = screenHeight;
         break;
     case R90DEG:
         m_madctl |= MADCTL_MV;
-        m_dispWidth  = ILI934X_HW_HEIGHT;
-        m_dispHeight = ILI934X_HW_WIDTH;
+        m_dispWidth  = screenHeight;
+        m_dispHeight = screenWidth;
         break;
     case R180DEG:
         m_madctl |= MADCTL_MY;
-        m_dispWidth  = ILI934X_HW_WIDTH;
-        m_dispHeight = ILI934X_HW_HEIGHT;
+        m_dispWidth  = screenWidth;
+        m_dispHeight = screenHeight;
         break;
     case R270DEG:
         m_madctl |= (MADCTL_MY | MADCTL_MX | MADCTL_MV);
-        m_dispWidth  = ILI934X_HW_HEIGHT;
-        m_dispHeight = ILI934X_HW_WIDTH;
+        m_dispWidth  = screenHeight;
+        m_dispHeight = screenWidth;
         break;
     case MIRRORED0DEG:
         m_madctl |= MADCTL_MY | MADCTL_MX;
-        m_dispWidth  = ILI934X_HW_WIDTH;
-        m_dispHeight = ILI934X_HW_HEIGHT;
+        m_dispWidth  = screenWidth;
+        m_dispHeight = screenHeight;
         break;
     case MIRRORED90DEG:
         m_madctl |= (MADCTL_MX | MADCTL_MV);
-        m_dispWidth  = ILI934X_HW_HEIGHT;
-        m_dispHeight = ILI934X_HW_WIDTH;
+        m_dispWidth  = screenHeight;
+        m_dispHeight = screenWidth;
         break;
     case MIRRORED180DEG:
-        m_dispWidth  = ILI934X_HW_WIDTH;
-        m_dispHeight = ILI934X_HW_HEIGHT;
+        m_dispWidth  = screenWidth;
+        m_dispHeight = screenHeight;
         break;
     case MIRRORED270DEG:
         m_madctl |= (MADCTL_MY | MADCTL_MV);
-        m_dispWidth  = ILI934X_HW_HEIGHT;
-        m_dispHeight = ILI934X_HW_WIDTH;
+        m_dispWidth  = screenHeight;
+        m_dispHeight = screenWidth;
+        break;
+    }
+}
+
+void ILI934X::createFramebuf()
+{
+    m_pFramebuf = new Framebuf();
+    switch (m_nQuadrants)
+    {
+    case 1:
+        m_pFramebuf->Initialize(m_dispWidth, m_dispHeight, RGB565, bReverseBytes);
+        quadrantList = {FULL_FRAME};
+        break;
+    case 2:
+        if (m_dispWidth > m_dispHeight)
+        {
+            m_pFramebuf->Initialize(m_dispWidth / 2, m_dispHeight, RGB565, bReverseBytes);
+            quadrantList = {LEFT_HALF, RIGHT_HALF};
+        }
+        else
+        {
+            m_pFramebuf->Initialize(m_dispWidth, m_dispHeight / 2, RGB565, bReverseBytes);
+            quadrantList = {UPPER_HALF, LOWER_HALF};
+        }
+        break;
+    case 4:
+        m_pFramebuf->Initialize(m_dispWidth / 2, m_dispHeight / 2, RGB565, bReverseBytes);
+        quadrantList = {UPPER_LEFT, LOWER_LEFT, UPPER_RIGHT, LOWER_RIGHT};
+        break;
+    default:
         break;
     }
 }
@@ -366,6 +447,11 @@ void ILI934X::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     _data(pTgtData8, linesLeftover * _w * 2);
 }
 
+void ILI934X::_writeByte(uint8_t data)
+{
+    spi_write_blocking(m_spi, &data, 1);
+}
+
 void ILI934X::_write(uint8_t cmd, uint8_t* data, size_t dataLen)
 {
     _cs_select();
@@ -394,6 +480,27 @@ void ILI934X::_write(uint8_t cmd, uint8_t* data, size_t dataLen)
     }
 }
 
+void ILI934X::_data(uint16_t data)
+{
+    _cs_select();
+    _data_select();
+
+    _writeByte(data & 0xff);
+
+    _cs_deselect();
+}
+
+void ILI948X::_data(uint16_t data)
+{
+    _cs_select();
+    _data_select();
+
+    _writeByte(data >> 8);
+    _writeByte(data & 0xff);
+
+    _cs_deselect();
+}
+
 void ILI934X::_data(uint8_t* data, size_t dataLen)
 {
     _cs_select();
@@ -407,14 +514,24 @@ void ILI934X::_data(uint8_t* data, size_t dataLen)
 void ILI934X::_writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data, size_t dataLen)
 {
     uint16_t buffer[2];
+    uint8_t* pBuffer = reinterpret_cast<uint8_t*>(buffer);
     buffer[0] = __builtin_bswap16(x0);
     buffer[1] = __builtin_bswap16(x1);
 
-    _write(_CASET, (uint8_t*)buffer, 4);
+    _write(_CASET);
+    _data(pBuffer[0]);
+    _data(pBuffer[1]);
+    _data(pBuffer[2]);
+    _data(pBuffer[3]);
 
     buffer[0] = __builtin_bswap16(y0);
     buffer[1] = __builtin_bswap16(y1);
 
-    _write(_PASET, (uint8_t*)buffer, 4);
+    _write(_PASET);
+    _data(pBuffer[0]);
+    _data(pBuffer[1]);
+    _data(pBuffer[2]);
+    _data(pBuffer[3]);
+
     _write(_RAMWR, data, dataLen);
 }

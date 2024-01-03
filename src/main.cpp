@@ -35,7 +35,18 @@
 #define STOP_BITS      1
 #define PARITY         UART_PARITY_NONE
 
-#if defined(RASPBERRYPI_PICO) || defined(RASPBERRYPI_PICO_W)
+// #define USE_ILI948X
+
+#if defined(USE_ILI948X) // Waveshare Pico-ResTouch-LCD-3.5
+#define SPI_DEVICE spi1
+#define PIN_DC     8
+#define PIN_CS     9
+#define PIN_SCK    10
+#define PIN_MOSI   11
+#define PIN_MISO   12
+#define PIN_BL     13
+#define PIN_RST    15
+#elif defined(RASPBERRYPI_PICO) || defined(RASPBERRYPI_PICO_W)
 #define SPI_DEVICE spi_default              // Default is SPI0 for Pico
 #define PIN_MISO   PICO_DEFAULT_SPI_RX_PIN  // White  16
 #define PIN_CS     PICO_DEFAULT_SPI_CSN_PIN // Org    17
@@ -43,6 +54,7 @@
 #define PIN_MOSI   PICO_DEFAULT_SPI_TX_PIN  // Blue   19
 #define PIN_RST    20                       // Yellow
 #define PIN_DC     21                       // Green
+#define PIN_BL     22                       // Gray
 #elif defined(SEEED_XIAO_RP2040)
 // XIAO has spi0 CSn overlap with uart0, so override
 #define SPI_DEVICE spi_default              // Default is SPI0 for XIAO
@@ -52,6 +64,7 @@
 #define PIN_MOSI   PICO_DEFAULT_SPI_TX_PIN  // Blue   3
 #define PIN_RST    27                       // Yellow
 #define PIN_DC     28                       // Green
+#define PIN_BL     29                       // Gray
 #elif defined(WAVESHARE_RP2040_ZERO)
 // RP2040-Zero has default spi1, which is on the bottom, so use spi0
 #define SPI_DEVICE spi0 // override
@@ -61,6 +74,7 @@
 #define PIN_MOSI   7    // Blue
 #define PIN_RST    14   // Yellow
 #define PIN_DC     15   // Green
+#define PIN_BL     29   // Gray
 #else
 #error unknown board
 #endif
@@ -80,7 +94,7 @@ int main()
     uart_set_format(UART_DEVICE, DATA_BITS, STOP_BITS, PARITY);
 
     // Set up the TFT display
-    spi_init(SPI_DEVICE, 40000000);
+    spi_init(SPI_DEVICE, 80000000);
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
@@ -91,6 +105,9 @@ int main()
     gpio_set_dir(PIN_DC, GPIO_OUT);
     gpio_init(PIN_RST);
     gpio_set_dir(PIN_RST, GPIO_OUT);
+    gpio_init(PIN_BL);
+    gpio_set_dir(PIN_BL, GPIO_OUT);
+    gpio_put(PIN_BL, 1);
 
 #if defined(SEEED_XIAO_RP2040)
     // Clear LED(s) on XIAO (default on)
@@ -126,15 +143,16 @@ int main()
     GPS* pGPS = new GPS(UART_DEVICE);
 
     // Create the display.  ILI9341, rotate 270
+#if defined(USE_ILI948X)
+    ILI948X* pDisplay = new ILI948X(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
+#else
     ILI934X* pDisplay = new ILI934X(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
+#endif
     sleep_ms(500);
 
-    GPS_TFT* pDevice = new GPS_TFT(pDisplay, pGPS, pLED);
+    GPS_TFT* pDevice = new GPS_TFT(pDisplay, pGPS, pLED, -5.0);
 
-    if (!pDevice->Initialize())
-    {
-        std::cout << "Failed to initialize the device" << std::endl;
-    }
+    pDevice->Initialize();
     pDevice->Run();
 
     return 0;
