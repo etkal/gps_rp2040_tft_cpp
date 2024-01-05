@@ -10,6 +10,8 @@
 #include <hardware/gpio.h>
 #include <hardware/uart.h>
 
+#include <memory>
+
 #include "ili934x.h"
 #include "gps.h"
 #include "led.h"
@@ -25,7 +27,9 @@
 class GPS_TFT
 {
 public:
-    GPS_TFT(ILI934X* pDisplay, GPS* pGPS, LED* pLED, float GMToffset = 0.0);
+    typedef std::shared_ptr<GPS_TFT> Shared;
+
+    GPS_TFT(ILI934X::Shared spDisplay, GPS::Shared spGPS, LED::Shared spLED, float GMToffset = 0.0);
     ~GPS_TFT();
 
     void Initialize();
@@ -33,11 +37,10 @@ public:
 
 private:
     static void sentenceCB(void* pCtx, string strSentence);
-    static void gpsDataCB(void* pCtx, GPSData* pGPSData);
+    static void gpsDataCB(void* pCtx, GPSData::Shared spGPSData);
 
-    void updateUI(GPSData* pGPSData);
-    void drawSatGrid(uint x, uint y, uint width, uint height, uint nRings = 3);
-    void drawSatGridRadial(uint xCenter, uint yCenter, uint radius, uint nRings = 3);
+    void updateUI(GPSData::Shared spGPSData);
+    void drawSatGrid(uint xCenter, uint yCenter, uint radius, uint nRings = 3);
     void drawBarGraph(uint x, uint y, uint width, uint height);
     void drawClock(uint x, uint y, uint radius, string strTime);
     void drawCircleSat(uint gridCenterX,
@@ -51,10 +54,10 @@ private:
     int linePos(int nLine);
     void drawText(int nLine, string strText, uint16_t color = COLOUR_WHITE, bool bRightAlign = true, uint nPadding = 0);
 
-    ILI934X* m_pDisplay;
-    GPS* m_pGPS;
-    LED* m_pLED;
+    ILI934X::Shared m_spDisplay;
+    GPS::Shared m_spGPS;
+    LED::Shared m_spLED;
     float m_GMToffset;
 
-    GPSData* m_pGPSData;
+    GPSData::Shared m_spGPSData;
 };

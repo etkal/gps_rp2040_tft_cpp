@@ -69,7 +69,6 @@ GPS::GPS(uart_inst_t* pUART)
       m_bFixPos(false),
       m_bExternalAntenna(true),
       m_bGSVInProgress(false),
-      m_pGPSData(NULL),
       m_pSentenceCallBack(nullptr),
       m_pSentenceCtx(nullptr),
       m_pGpsDataCallback(nullptr),
@@ -79,7 +78,6 @@ GPS::GPS(uart_inst_t* pUART)
 
 GPS::~GPS()
 {
-    delete m_pGPSData;
 }
 
 void GPS::SetSentenceCallback(void* pCtx, sentenceCallback pCB)
@@ -154,11 +152,11 @@ void GPS::processSentence(string strSentence)
         (*m_pSentenceCallBack)(m_pSentenceCtx, strSentence);
     }
 
-    if (NULL == m_pGPSData)
+    if (!m_spGPSData)
     {
         // Guarantee we have an object to update
-        m_pGPSData           = new GPSData;
-        m_pGPSData->vSatList = m_vSatListPersistent; // restore previous data
+        m_spGPSData           = std::make_shared<GPSData>();
+        m_spGPSData->mSatList = m_mSatListPersistent; // restore previous data
     }
 
     // Split the string
@@ -173,8 +171,8 @@ void GPS::processSentence(string strSentence)
 
     if (time_us_64() > m_nSatListTime + 30 * 1000 * 1000) // Nothing in 30 seconds, clear vectors
     {
-        m_pGPSData->vSatList.clear();
-        m_pGPSData->vUsedList.clear();
+        m_spGPSData->mSatList.clear();
+        m_spGPSData->vUsedList.clear();
     }
 
     if (elems[0] == "$GPGSV")
@@ -182,7 +180,7 @@ void GPS::processSentence(string strSentence)
         // Multipart, clear any previous data and re-gather
         if (elems[2] == "1")
         {
-            m_pGPSData->vSatList.clear();
+            m_spGPSData->mSatList.clear();
             m_strNumGSV      = elems[1];
             m_bGSVInProgress = true;
         }
@@ -197,7 +195,7 @@ void GPS::processSentence(string strSentence)
                     uint el   = atoi(elems[i + 1].c_str());
                     uint az   = atoi(elems[i + 2].c_str());
                     uint rssi = elems[i + 3].empty() ? 0 : atoi(elems[i + 3].c_str());
-                    m_pGPSData->vSatList.emplace_back(num, el, az, rssi);
+                    m_spGPSData->mSatList.emplace(std::make_pair(num, SatInfo(num, el, az, rssi)));
                 }
             }
             if (elems[2] == m_strNumGSV) // Last one received
@@ -210,30 +208,30 @@ void GPS::processSentence(string strSentence)
     }
     else if (m_bGSVInProgress) // Did not complete
     {
-        m_pGPSData->vSatList.clear();
-        m_pGPSData->vUsedList.clear();
+        m_spGPSData->mSatList.clear();
+        m_spGPSData->vUsedList.clear();
     }
 
     if (elems[0] == "$GPRMC")
     {
         if (!elems[1].empty())
         {
-            string& t              = elems[1];
-            m_pGPSData->strGPSTime = t.substr(0, 2) + ":" + t.substr(2, 2) + ":" + t.substr(4, 2) + "Z";
-            m_bFixTime             = true;
+            string& t               = elems[1];
+            m_spGPSData->strGPSTime = t.substr(0, 2) + ":" + t.substr(2, 2) + ":" + t.substr(4, 2) + "Z";
+            m_bFixTime              = true;
         }
         else
         {
-            m_bFixTime             = false;
-            m_pGPSData->strGPSTime = "";
+            m_bFixTime              = false;
+            m_spGPSData->strGPSTime = "";
         }
         if (elems[2] == "A")
         {
             if (!elems[3].empty() && !elems[4].empty() && !elems[5].empty() && !elems[6].empty())
             {
-                m_bFixPos                = true;
-                m_pGPSData->strLatitude  = convertToDegrees(elems[3], 7) + elems[4];
-                m_pGPSData->strLongitude = convertToDegrees(elems[5], 8) + elems[6];
+                m_bFixPos                 = true;
+                m_spGPSData->strLatitude  = convertToDegrees(elems[3], 7) + elems[4];
+                m_spGPSData->strLongitude = convertToDegrees(elems[5], 8) + elems[6];
             }
             if (!elems[7].empty())
             {
@@ -247,7 +245,7 @@ void GPS::processSentence(string strSentence)
                 {
                     oss << setfill(' ') << setprecision(0) << dKnots << "kn";
                 }
-                m_pGPSData->strSpeedKts = oss.str();
+                m_spGPSData->strSpeedKts = oss.str();
             }
         }
         else
@@ -260,7 +258,7 @@ void GPS::processSentence(string strSentence)
     {
         if (!elems[7].empty())
         {
-            m_pGPSData->strNumSats = "Sat: " + elems[7];
+            m_spGPSData->strNumSats = "Sat: " + elems[7];
         }
         if (!elems[9].empty())
         {
@@ -274,17 +272,17 @@ void GPS::processSentence(string strSentence)
             {
                 oss << setfill(' ') << setprecision(0) << dMeters << "m";
             }
-            m_pGPSData->strAltitude = oss.str();
+            m_spGPSData->strAltitude = oss.str();
         }
     }
 
     if (elems[0] == "$GPGSA")
     {
-        m_pGPSData->vUsedList.clear();
-        m_pGPSData->strMode3D = elems[2] + "D Fix";
+        m_spGPSData->vUsedList.clear();
+        m_spGPSData->strMode3D = elems[2] + "D Fix";
         if (elems[2] == "1")
         {
-            m_pGPSData->strMode3D = "No Fix";
+            m_spGPSData->strMode3D = "No Fix";
         }
         for (int i = 3; i < 15; ++i)
         {
@@ -293,7 +291,7 @@ void GPS::processSentence(string strSentence)
                 uint satNum = atoi(elems[i].c_str());
                 if (satNum != 0)
                 {
-                    m_pGPSData->vUsedList.push_back(satNum);
+                    m_spGPSData->vUsedList.push_back(satNum);
                 }
             }
             else
@@ -307,9 +305,9 @@ void GPS::processSentence(string strSentence)
     {
         if (NULL != m_pGpsDataCallback)
         {
-            m_vSatListPersistent = m_pGPSData->vSatList; // Persist the list
-            (*m_pGpsDataCallback)(m_pGpsDataCtx, m_pGPSData);
-            m_pGPSData = NULL; // Caller must free
+            m_mSatListPersistent = m_spGPSData->mSatList; // Persist the list
+            (*m_pGpsDataCallback)(m_pGpsDataCtx, m_spGPSData);
+            m_spGPSData.reset();
         }
     }
 

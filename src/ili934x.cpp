@@ -45,6 +45,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "stdio.h"
 #include <iostream>
 #include <cstring>
+#include <vector>
 
 #include "ili934x.h"
 #include "hardware/gpio.h"
@@ -76,7 +77,7 @@ ILI934X::ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION 
       m_rotation(rotation),
       m_madctl(COLOUR_ORDER_BGR),
       m_pFramebuf(nullptr),
-      m_nQuadrants(2),
+      m_nQuadrants(4),
       m_eQuadrant(FULL_FRAME),
       m_xoff(0),
       m_yoff(0)
@@ -99,21 +100,11 @@ ILI948X::ILI948X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION 
 void ILI934X::Reset()
 {
     gpio_put(m_rst, 1);
-    sleep_ms(100);
+    sleep_ms(50);
     gpio_put(m_rst, 0);
-    sleep_ms(100);
+    sleep_ms(50);
     gpio_put(m_rst, 1);
-    sleep_ms(100);
-}
-
-void ILI948X::Reset()
-{
-    gpio_put(m_rst, 1);
-    sleep_ms(500);
-    gpio_put(m_rst, 0);
-    sleep_ms(500);
-    gpio_put(m_rst, 1);
-    sleep_ms(500);
+    sleep_ms(50);
 }
 
 void ILI934X::Initialize()
@@ -203,7 +194,7 @@ void ILI948X::Initialize()
     _write(_PIXSET);
     _data(0x55);
     _write(_SLPOUT);
-    sleep_ms(120);
+    sleep_ms(50);
     _write(_DISPON);
     _write(_DISCTRL);
     _data(0x00);
@@ -214,15 +205,12 @@ void ILI948X::Initialize()
 
 void ILI934X::Clear(uint16_t colour)
 {
-    uint16_t buffer = __builtin_bswap16(colour);
-    uint8_t* pData  = reinterpret_cast<uint8_t*>(&buffer);
+    std::vector<uint16_t> buf(m_dispWidth, __builtin_bswap16(colour));
+    uint8_t* pData = reinterpret_cast<uint8_t*>(buf.data());
     _writeBlock(0, 0, m_dispWidth - 1, m_dispHeight - 1);
     for (uint16_t iy = 0; iy < m_dispHeight; ++iy)
     {
-        for (uint16_t ix = 0; ix < m_dispWidth; ++ix)
-        {
-            _data(pData, 2);
-        }
+        _data(pData, m_dispWidth * 2);
     }
 }
 
@@ -515,6 +503,7 @@ void ILI934X::_writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, ui
 {
     uint16_t buffer[2];
     uint8_t* pBuffer = reinterpret_cast<uint8_t*>(buffer);
+
     buffer[0] = __builtin_bswap16(x0);
     buffer[1] = __builtin_bswap16(x1);
 
