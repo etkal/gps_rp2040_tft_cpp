@@ -120,40 +120,42 @@ int main()
     cyw43_arch_init();
 #endif
 
+    // Create the LED object
+    LED::Shared spLED;
 #if defined(USE_WS2812_PIN)
-    LED* pLED = new LED_neo(1, USE_WS2812_PIN);
-    pLED->Initialize();
-    pLED->SetPixel(0, led_green);
+    spLED = std::make_shared<LED_neo>(1, USE_WS2812_PIN);
+    spLED->Initialize();
+    spLED->SetPixel(0, led_green);
 #elif defined(PICO_DEFAULT_WS2812_PIN) && !defined(USE_LED_PIN)
-    LED* pLED = new LED_neo(1, PICO_DEFAULT_WS2812_PIN);
-    pLED->Initialize();
-    pLED->SetPixel(0, led_green);
+    spLED = std::make_shared<LED_neo>(1, PICO_DEFAULT_WS2812_PIN);
+    spLED->Initialize();
+    spLED->SetPixel(0, led_green);
 #elif defined(USE_LED_PIN)
-    LED* pLED = new LED_pico(USE_LED_PIN);
-    pLED->SetIgnore({led_red});
+    spLED = std::make_shared<LED_pico>(USE_LED_PIN);
+    spLED->SetIgnore({led_red});
 #elif defined(PICO_DEFAULT_LED_PIN)
-    LED* pLED = new LED_pico(PICO_DEFAULT_LED_PIN);
-    pLED->SetIgnore({led_red});
+    spLED = std::make_shared<LED_pico>(PICO_DEFAULT_LED_PIN);
+    spLED->SetIgnore({led_red});
 #elif defined(RASPBERRYPI_PICO_W)
-    LED* pLED = new LED_pico_w(CYW43_WL_GPIO_LED_PIN);
-    pLED->SetIgnore({led_red});
-#else
-    LED* pLED = nullptr;
+    spLED = std::make_shared<LED_pico_w>(CYW43_WL_GPIO_LED_PIN);
+    spLED->SetIgnore({led_red});
 #endif
-    GPS* pGPS = new GPS(UART_DEVICE);
 
-    // Create the display.  ILI9341, rotate 270
+    // Create the GPS object
+    GPS::Shared spGPS = std::make_shared<GPS>(UART_DEVICE);
+
+    // Create the display.  ILI9341 or ILI9488, rotate 270 degrees
 #if defined(USE_ILI948X)
-    ILI948X* pDisplay = new ILI948X(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
+    ILI934X::Shared spDisplay = std::make_shared<ILI948X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
 #else
-    ILI934X* pDisplay = new ILI934X(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
+    ILI934X::Shared spDisplay = std::make_shared<ILI934X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
 #endif
-    sleep_ms(500);
 
-    GPS_TFT* pDevice = new GPS_TFT(pDisplay, pGPS, pLED, -5.0);
+    // Create the GPS_TFT display object
+    GPS_TFT::Shared spDevice = std::make_shared<GPS_TFT>(spDisplay, spGPS, spLED, -5.0);
 
-    pDevice->Initialize();
-    pDevice->Run();
+    spDevice->Initialize();
+    spDevice->Run();
 
     return 0;
 }

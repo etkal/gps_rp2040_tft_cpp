@@ -11,6 +11,8 @@
 #include <hardware/uart.h>
 #include <string>
 #include <vector>
+#include <map>
+#include <memory>
 
 using namespace std;
 
@@ -34,18 +36,16 @@ public:
     uint m_rssi;
 };
 
-typedef vector<SatInfo> SatList;
+typedef map<uint, SatInfo> SatList;
 typedef vector<uint> UsedList;
 
 class GPSData
 {
 public:
-    GPSData()
-    {
-    }
-    ~GPSData()
-    {
-    }
+    typedef std::shared_ptr<GPSData> Shared;
+
+    GPSData()  = default;
+    ~GPSData() = default;
 
     string strLatitude;
     string strLongitude;
@@ -54,16 +54,18 @@ public:
     string strGPSTime;
     string strMode3D;
     string strSpeedKts;
-    SatList vSatList;
+    SatList mSatList;
     UsedList vUsedList;
 };
 
 typedef void (*sentenceCallback)(void* pCtx, string strSentence);
-typedef void (*gpsDataCallback)(void* pCtx, GPSData* pGPSData);
+typedef void (*gpsDataCallback)(void* pCtx, GPSData::Shared spGPSData);
 
 class GPS
 {
 public:
+    typedef std::shared_ptr<GPS> Shared;
+
     GPS(uart_inst_t* m_pUART);
     ~GPS();
 
@@ -96,8 +98,8 @@ private:
     bool m_bGSVInProgress;
     string m_strNumGSV;
     uint64_t m_nSatListTime;
-    GPSData* m_pGPSData;
-    SatList m_vSatListPersistent;
+    GPSData::Shared m_spGPSData;
+    SatList m_mSatListPersistent;
 
     sentenceCallback m_pSentenceCallBack;
     void* m_pSentenceCtx;

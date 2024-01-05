@@ -8,6 +8,7 @@
 #pragma once
 
 #include <vector>
+#include <memory>
 
 #if PICO_DEFAULT_LED_PIN_INVERTED
 auto constexpr LED_ON  = 0;
@@ -46,6 +47,8 @@ auto constexpr led_yellow  = urgb_u32(0x80, 0x80, 0);
 class LED
 {
 public:
+    typedef std::shared_ptr<LED> Shared;
+
     LED(){};
     virtual ~LED(){};
 

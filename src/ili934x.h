@@ -48,6 +48,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include <list>
+#include <memory>
 #include <pico/stdlib.h>
 #include <hardware/spi.h>
 #include <hardware/gpio.h>
@@ -148,6 +149,8 @@ enum QUADRANT
 class ILI934X
 {
 public:
+    typedef std::shared_ptr<ILI934X> Shared;
+
     ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
     virtual ~ILI934X();
 
@@ -239,7 +242,6 @@ public:
     ILI948X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
     virtual ~ILI948X() = default;
 
-    void Reset() override;
     void Initialize() override;
 
 private:
