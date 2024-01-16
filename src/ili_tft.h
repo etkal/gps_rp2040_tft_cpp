@@ -1,16 +1,19 @@
 /*
- * Pico ILI934x TFT display driver class
+ * Pico ILI TFT display driver class
+ *
+ * Currently supports ILI9341 and ILI9488 displays.
  *
  * (c) 2024 Erik Tkal
  *
- * Modified from Darren Horrocks version to fix command/data/select timing, as well
- * as removing the GFXFont support.
+ * Modified from Darren Horrocks ILI934X version to fix command/data/select timing,
+ * as well as removing the GFXFont support.
  * Modified to inherit from Framebuffer (itself a version modified from analyzing
  * the Damien P. George MicroPython modframebuf.c).
  *
  * Notes:
- *   1) In order to use framebuf, always set width=240, height=320, rot=90/270.
- *      Let the framebuf return its width and height for calculation purposes.
+ *   1) To use framebuf, set portrait mode, i.e. width = 240, height = 320 for ILI934X,
+ *      width = 320, height = 480 for ILI948X, and then rotate appropriately, e.g. 270 degrees.
+ *      Let the framebuf return its width and height for content calculation purposes.
  */
 
 /*
@@ -54,6 +57,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <hardware/gpio.h>
 #include "framebuf.h"
 
+// ILI TFT commands
+//
 #define _RDDSDR         0x0f // Read Display Self-Diagnostic Result
 #define _SLPOUT         0x11 // Sleep Out
 #define _GAMSET         0x26 // Gamma Set
@@ -95,7 +100,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define _MAX_CHUNK_SIZE 4096
 
-/* Windows 16 colour pallet converted to 5-6-5 */
+// Windows 16-bit colour pallet converted to 5-6-5
 #define COLOUR_BLACK      0x0000
 #define COLOUR_MAROON     0x8000
 #define COLOUR_GREEN      0x07E0
@@ -146,16 +151,19 @@ enum QUADRANT
     LOWER_RIGHT
 };
 
-class ILI934X
+// Base ILI TFT class
+//
+class ILI_TFT
 {
 public:
-    typedef std::shared_ptr<ILI934X> Shared;
+    typedef std::shared_ptr<ILI_TFT> Shared;
 
-    ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
-    virtual ~ILI934X();
+    ILI_TFT(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
+    virtual ~ILI_TFT() = default;
 
-    virtual void Reset();
-    virtual void Initialize();
+    virtual void Reset()      = 0;
+    virtual void Initialize() = 0;
+
     void Clear(uint16_t colour = COLOUR_BLACK); // Clear entire display via hardware access
     void SetQuadrant(QUADRANT eQuadrant);
     std::list<QUADRANT> GetQuadrants();
@@ -196,24 +204,26 @@ protected:
         x -= m_xoff;
         y -= m_yoff;
     }
-    void _writeByte(uint8_t data);
-    void _write(uint8_t cmd, uint8_t* data = NULL, size_t dataLen = 0);
-    virtual void _data(uint16_t data);
-    virtual void _data(uint8_t* data, size_t dataLen = 0);
-    void _writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data = NULL, size_t dataLen = 0);
-    inline void _cs_select()
+
+    virtual void sendData(uint16_t data) = 0;
+
+    void writeByte(uint8_t data);
+    void write(uint8_t cmd, uint8_t* data = NULL, size_t dataLen = 0);
+    void sendData(uint8_t* data, size_t dataLen = 0);
+    void writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data = NULL, size_t dataLen = 0);
+    inline void cs_select()
     {
         gpio_put(m_cs, 0); // Active low
     }
-    inline void _cs_deselect()
+    inline void cs_deselect()
     {
         gpio_put(m_cs, 1);
     }
-    inline void _command_select()
+    inline void command_select()
     {
         gpio_put(m_dc, 0);
     }
-    inline void _data_select()
+    inline void data_select()
     {
         gpio_put(m_dc, 1);
     }
@@ -227,7 +237,7 @@ protected:
     uint16_t m_dispHeight;
     ROTATION m_rotation;
     uint8_t m_madctl;
-    Framebuf* m_pFramebuf;
+    Framebuf::Shared m_spFramebuf;
     uint16_t m_nQuadrants;
     std::list<QUADRANT> quadrantList;
     QUADRANT m_eQuadrant;
@@ -235,15 +245,32 @@ protected:
     uint16_t m_yoff;
 };
 
+// ILI934X-specific TFT class
+//
+class ILI934X : public ILI_TFT
+{
+public:
+    ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
+    virtual ~ILI934X() = default;
 
-class ILI948X : public ILI934X
+    void Initialize() override;
+    void Reset() override;
+
+private:
+    void sendData(uint16_t data) override;
+};
+
+// ILI948X-specific TFT class
+//
+class ILI948X : public ILI_TFT
 {
 public:
     ILI948X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
     virtual ~ILI948X() = default;
 
     void Initialize() override;
+    void Reset() override;
 
 private:
-    void _data(uint16_t data) override;
+    void sendData(uint16_t data) override;
 };

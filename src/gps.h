@@ -14,8 +14,6 @@
 #include <map>
 #include <memory>
 
-using namespace std;
-
 class SatInfo
 {
 public:
@@ -36,8 +34,8 @@ public:
     uint m_rssi;
 };
 
-typedef map<uint, SatInfo> SatList;
-typedef vector<uint> UsedList;
+typedef std::map<uint, SatInfo> SatList;
+typedef std::vector<uint> UsedList;
 
 class GPSData
 {
@@ -47,18 +45,18 @@ public:
     GPSData()  = default;
     ~GPSData() = default;
 
-    string strLatitude;
-    string strLongitude;
-    string strAltitude;
-    string strNumSats;
-    string strGPSTime;
-    string strMode3D;
-    string strSpeedKts;
+    std::string strLatitude;
+    std::string strLongitude;
+    std::string strAltitude;
+    std::string strNumSats;
+    std::string strGPSTime;
+    std::string strMode3D;
+    std::string strSpeedKts;
     SatList mSatList;
     UsedList vUsedList;
 };
 
-typedef void (*sentenceCallback)(void* pCtx, string strSentence);
+typedef void (*sentenceCallback)(void* pCtx, std::string strSentence);
 typedef void (*gpsDataCallback)(void* pCtx, GPSData::Shared spGPSData);
 
 class GPS
@@ -86,17 +84,18 @@ public:
     }
 
 private:
-    void processSentence(string strSentence);
-    bool validateSentence(string& strSentence);
-    string checkSum(const string& strSentence);
-    string convertToDegrees(string strRaw, int width);
+    void processSentence(std::string strSentence);
+    bool validateSentence(std::string& strSentence);
+    std::string checkSum(const std::string& strSentence);
+    std::string convertToDegrees(std::string strRaw, int width);
 
     uart_inst_t* m_pUART;
+    bool m_bExit;
     bool m_bFixTime;
     bool m_bFixPos;
     bool m_bExternalAntenna;
     bool m_bGSVInProgress;
-    string m_strNumGSV;
+    std::string m_strNumGSV;
     uint64_t m_nSatListTime;
     GPSData::Shared m_spGPSData;
     SatList m_mSatListPersistent;

@@ -8,6 +8,7 @@
 #pragma once
 
 #include "pico/stdlib.h"
+#include <memory>
 
 typedef enum ePixelFormat
 {
@@ -31,13 +32,11 @@ constexpr bool bReverseBytes = true;
 class Framebuf
 {
 public:
+    typedef std::shared_ptr<Framebuf> Shared;
+
     Framebuf();
     ~Framebuf();
-    void Initialize(uint16_t nWidth,
-                    uint16_t nHeight,
-                    ePixelFormat eFormat,
-                    bool bRevBytes   = false,
-                    uint16_t nStride = 0);
+    void Initialize(uint16_t nWidth, uint16_t nHeight, ePixelFormat eFormat, bool bRevBytes = false, uint16_t nStride = 0);
 
     void setpixel(int x, int y, uint16_t color);
     uint16_t getpixel(int x, int y);

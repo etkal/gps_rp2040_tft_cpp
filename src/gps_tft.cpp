@@ -12,13 +12,25 @@
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
 
-#include "ili934x.h"
+#include "ili_tft.h"
 #include "gps_tft.h"
 #include <pico/double.h>
 #include <math.h>
 #include <iomanip>
 
-using namespace std;
+#if !defined(NDEBUG)
+#include <malloc.h>
+static uint32_t getTotalHeap()
+{
+    extern char __StackLimit, __bss_end__;
+    return &__StackLimit - &__bss_end__;
+}
+static uint32_t getFreeHeap()
+{
+    struct mallinfo m = mallinfo();
+    return getTotalHeap() - m.uordblks;
+}
+#endif
 
 #define SAT_ICON_RADIUS 4
 
@@ -33,7 +45,7 @@ constexpr uint Y_PAD       = PAD_CHARS_Y * LINE_HEIGHT;
 
 constexpr double pi = 3.14159265359;
 
-GPS_TFT::GPS_TFT(ILI934X::Shared spDisplay, GPS::Shared spGPS, LED::Shared spLED, float GMToffset)
+GPS_TFT::GPS_TFT(ILI_TFT::Shared spDisplay, GPS::Shared spGPS, LED::Shared spLED, float GMToffset)
     : m_spDisplay(spDisplay),
       m_spGPS(spGPS),
       m_spLED(spLED),
@@ -66,14 +78,13 @@ void GPS_TFT::Run()
     m_spGPS->Run();
 }
 
-void GPS_TFT::sentenceCB(void* pCtx, string strSentence)
+void GPS_TFT::sentenceCB(void* pCtx, std::string strSentence)
 {
     // printf("sentenceCB received: %s\n", strSentence.c_str());
 }
 
 void GPS_TFT::gpsDataCB(void* pCtx, GPSData::Shared spGPSData)
 {
-    // printf("gpsDataCB received time: %s\n", spGPSData->strGPSTime.c_str());
     GPS_TFT* pThis = reinterpret_cast<GPS_TFT*>(pCtx);
     pThis->updateUI(spGPSData);
 }
@@ -153,8 +164,11 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
     }
 
     m_spGPSData.reset();
-}
 
+#if !defined(NDEBUG)
+    std::cout << "Total Heap: " << getTotalHeap() << "  Free Heap: " << getFreeHeap() << std::endl;
+#endif
+}
 
 void GPS_TFT::drawSatGrid(uint xCenter, uint yCenter, uint radius, uint nRings)
 {
@@ -209,7 +223,6 @@ void GPS_TFT::drawCircleSat(uint gridCenterX,
     m_spDisplay->Ellipse(x, y, satRadius, satRadius, color);           // Draw circle without fill
 }
 
-
 void GPS_TFT::drawBarGraph(uint x, uint y, uint width, uint height)
 {
     constexpr auto nMaxSats = 16;
@@ -227,9 +240,9 @@ void GPS_TFT::drawBarGraph(uint x, uint y, uint width, uint height)
         m_spDisplay->HLine(barPosX, baseLineY, barDelta, COLOUR_WHITE);
         uint nSat = oSat.m_num;
         std::stringstream oss;
-        oss << fixed << setw(2) << setfill('0') << setprecision(0) << nSat;
-        string strSatNum = oss.str();
-        uint charPosX    = barPosX + (barDelta - CHAR_WIDTH) / 2;
+        oss << std::fixed << std::setw(2) << std::setfill('0') << std::setprecision(0) << nSat;
+        std::string strSatNum = oss.str();
+        uint charPosX         = barPosX + (barDelta - CHAR_WIDTH) / 2;
         m_spDisplay->Text(strSatNum.substr(0, 1).c_str(), charPosX, baseLineY + 2, COLOUR_WHITE);
         m_spDisplay->Text(strSatNum.substr(1, 1).c_str(), charPosX, baseLineY + CHAR_HEIGHT + 2, COLOUR_WHITE);
         if (barHeight > 0)
@@ -251,7 +264,7 @@ void GPS_TFT::drawBarGraph(uint x, uint y, uint width, uint height)
     }
 }
 
-void GPS_TFT::drawClock(uint x, uint y, uint radius, string strTime)
+void GPS_TFT::drawClock(uint x, uint y, uint radius, std::string strTime)
 {
     uint xCenter             = x + radius;
     uint yCenter             = y + radius;
@@ -305,7 +318,7 @@ int GPS_TFT::linePos(int nLine)
         return m_spDisplay->Height() + 1 + ((nLine - PAD_CHARS_Y) * LINE_HEIGHT);
 }
 
-void GPS_TFT::drawText(int nLine, string strText, uint16_t color, bool bRightAlign, uint nPadding)
+void GPS_TFT::drawText(int nLine, std::string strText, uint16_t color, bool bRightAlign, uint nPadding)
 {
     int x = (!bRightAlign) ? 0 : m_spDisplay->Width() - (strText.length() * COL_WIDTH);
     int y = linePos(nLine);
