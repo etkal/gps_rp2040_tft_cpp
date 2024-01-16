@@ -22,7 +22,7 @@ GPS implementation in C++ using RP2040 with ili9341 TFT display
 
   In main.cpp the required abstraction objects are created, and the program reads NMEA 0183 sentences from the GPS UART port.
 
-  In the high level CMakeLists.txt some hardware and network specification is required.
+  In the high level CMakeLists.txt some specification is required (e.g. platform, display, GMT offset).
 
   The data is correlated and displayed in textual and graphical form on the display.  For the TFT it displays the latitude, longitude, altitude, GMT time and an indication of the number of satellites and fix type.  A graphical representation of the satellite positions is displayed, as well as a satellite signal strength bar graph and a clock.
 
