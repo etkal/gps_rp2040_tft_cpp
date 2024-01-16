@@ -1,5 +1,7 @@
 /*
- * Pico ILI934x TFT display driver class
+ * Pico ILI TFT display driver class
+ *
+ * Currently supports ILI9341 and ILI9488 displays.
  *
  * (c) 2024 Erik Tkal
  *
@@ -47,7 +49,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstring>
 #include <vector>
 
-#include "ili934x.h"
+#include "ili_tft.h"
 #include "hardware/gpio.h"
 
 #ifndef pgm_read_byte
@@ -66,8 +68,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     a = a + (~b) + 1;
 #endif
 
-// Note: cs is optional, set to 255 if not used
-ILI934X::ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
+ILI_TFT::ILI_TFT(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
     : m_spi(spi),
       m_cs(cs),
       m_dc(dc),
@@ -76,28 +77,35 @@ ILI934X::ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION 
       m_dispHeight(0),
       m_rotation(rotation),
       m_madctl(COLOUR_ORDER_BGR),
-      m_pFramebuf(nullptr),
-      m_nQuadrants(4),
+      m_spFramebuf(nullptr),
+      m_nQuadrants(DISPLAY_QUADRANTS),
       m_eQuadrant(FULL_FRAME),
       m_xoff(0),
       m_yoff(0)
 {
 }
 
-ILI934X::~ILI934X()
+ILI934X::ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
+    : ILI_TFT(spi, cs, dc, rst, rotation)
 {
-    if (nullptr != m_pFramebuf)
-    {
-        delete m_pFramebuf;
-    }
 }
 
 ILI948X::ILI948X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
-    : ILI934X(spi, cs, dc, rst, rotation)
+    : ILI_TFT(spi, cs, dc, rst, rotation)
 {
 }
 
 void ILI934X::Reset()
+{
+    gpio_put(m_rst, 1);
+    sleep_ms(50);
+    gpio_put(m_rst, 0);
+    sleep_ms(50);
+    gpio_put(m_rst, 1);
+    sleep_ms(50);
+}
+
+void ILI948X::Reset()
 {
     gpio_put(m_rst, 1);
     sleep_ms(50);
@@ -116,28 +124,28 @@ void ILI934X::Initialize()
     Reset();
 
     // Set the registers
-    _write(_RDDSDR, (uint8_t*)"\x03\x80\x02", 3);
-    _write(_PWCRTLB, (uint8_t*)"\x00\xc1\x30", 3);
-    _write(_PWRONCTRL, (uint8_t*)"\x64\x03\x12\x81", 4);
-    _write(_DTCTRLA, (uint8_t*)"\x85\x00\x78", 3);
-    _write(_PWCTRLA, (uint8_t*)"\x39\x2c\x00\x34\x02", 5);
-    _write(_PRCTRL, (uint8_t*)"\x20", 1);
-    _write(_DTCTRLB, (uint8_t*)"\x00\x00", 2);
-    _write(_PWCTRL1, (uint8_t*)"\x23", 1);
-    _write(_PWCTRL2, (uint8_t*)"\x10", 1);
-    _write(_VMCTRL1, (uint8_t*)"\x3e\x28", 2);
-    _write(_VMCTRL2, (uint8_t*)"\x86", 1);
-    _write(_MADCTL, &m_madctl, 1);
-    _write(_PIXSET, (uint8_t*)"\x55", 1);
-    _write(_FRMCTR1, (uint8_t*)"\x00\x18", 2);
-    _write(_DISCTRL, (uint8_t*)"\x08\x82\x27", 3);
-    _write(_ENA3G, (uint8_t*)"\x00", 1);
-    _write(_GAMSET, (uint8_t*)"\x01", 1);
-    _write(_PGAMCTRL, (uint8_t*)"\x0f\x31\x2b\x0c\x0e\x08\x4e\xf1\x37\x07\x10\x03\x0e\x09\x00", 15);
-    _write(_NGAMCTRL, (uint8_t*)"\x00\x0e\x14\x03\x11\x07\x31\xc1\x48\x08\x0f\x0c\x31\x36\x0f", 15);
+    write(_RDDSDR, (uint8_t*)"\x03\x80\x02", 3);
+    write(_PWCRTLB, (uint8_t*)"\x00\xc1\x30", 3);
+    write(_PWRONCTRL, (uint8_t*)"\x64\x03\x12\x81", 4);
+    write(_DTCTRLA, (uint8_t*)"\x85\x00\x78", 3);
+    write(_PWCTRLA, (uint8_t*)"\x39\x2c\x00\x34\x02", 5);
+    write(_PRCTRL, (uint8_t*)"\x20", 1);
+    write(_DTCTRLB, (uint8_t*)"\x00\x00", 2);
+    write(_PWCTRL1, (uint8_t*)"\x23", 1);
+    write(_PWCTRL2, (uint8_t*)"\x10", 1);
+    write(_VMCTRL1, (uint8_t*)"\x3e\x28", 2);
+    write(_VMCTRL2, (uint8_t*)"\x86", 1);
+    write(_MADCTL, &m_madctl, 1);
+    write(_PIXSET, (uint8_t*)"\x55", 1);
+    write(_FRMCTR1, (uint8_t*)"\x00\x18", 2);
+    write(_DISCTRL, (uint8_t*)"\x08\x82\x27", 3);
+    write(_ENA3G, (uint8_t*)"\x00", 1);
+    write(_GAMSET, (uint8_t*)"\x01", 1);
+    write(_PGAMCTRL, (uint8_t*)"\x0f\x31\x2b\x0c\x0e\x08\x4e\xf1\x37\x07\x10\x03\x0e\x09\x00", 15);
+    write(_NGAMCTRL, (uint8_t*)"\x00\x0e\x14\x03\x11\x07\x31\xc1\x48\x08\x0f\x0c\x31\x36\x0f", 15);
 
-    _write(_SLPOUT);
-    _write(_DISPON);
+    write(_SLPOUT);
+    write(_DISPON);
 }
 
 void ILI948X::Initialize()
@@ -149,72 +157,71 @@ void ILI948X::Initialize()
     Reset();
 
     // Set the registers
-
-    _write(_DSPINVON);
-    _write(_PWCTRL3);
-    _data(0x33);
-    _write(_VMCTRL1);
-    _data(0x00);
-    _data(0x1e);
-    _data(0x80);
-    _write(_FRMCTR1);
-    _data(0xb0);
-    _write(_PGAMCTRL);
-    _data(0x00);
-    _data(0x13);
-    _data(0x18);
-    _data(0x04);
-    _data(0x0F);
-    _data(0x06);
-    _data(0x3a);
-    _data(0x56);
-    _data(0x4d);
-    _data(0x03);
-    _data(0x0a);
-    _data(0x06);
-    _data(0x30);
-    _data(0x3e);
-    _data(0x0f);
-    _write(_NGAMCTRL);
-    _data(0x00);
-    _data(0x13);
-    _data(0x18);
-    _data(0x01);
-    _data(0x11);
-    _data(0x06);
-    _data(0x38);
-    _data(0x34);
-    _data(0x4d);
-    _data(0x06);
-    _data(0x0d);
-    _data(0x0b);
-    _data(0x31);
-    _data(0x37);
-    _data(0x0f);
-    _write(_PIXSET);
-    _data(0x55);
-    _write(_SLPOUT);
+    write(_DSPINVON);
+    write(_PWCTRL3);
+    sendData(0x33);
+    write(_VMCTRL1);
+    sendData(0x00);
+    sendData(0x1e);
+    sendData(0x80);
+    write(_FRMCTR1);
+    sendData(0xb0);
+    write(_PGAMCTRL);
+    sendData(0x00);
+    sendData(0x13);
+    sendData(0x18);
+    sendData(0x04);
+    sendData(0x0F);
+    sendData(0x06);
+    sendData(0x3a);
+    sendData(0x56);
+    sendData(0x4d);
+    sendData(0x03);
+    sendData(0x0a);
+    sendData(0x06);
+    sendData(0x30);
+    sendData(0x3e);
+    sendData(0x0f);
+    write(_NGAMCTRL);
+    sendData(0x00);
+    sendData(0x13);
+    sendData(0x18);
+    sendData(0x01);
+    sendData(0x11);
+    sendData(0x06);
+    sendData(0x38);
+    sendData(0x34);
+    sendData(0x4d);
+    sendData(0x06);
+    sendData(0x0d);
+    sendData(0x0b);
+    sendData(0x31);
+    sendData(0x37);
+    sendData(0x0f);
+    write(_PIXSET);
+    sendData(0x55);
+    write(_SLPOUT);
     sleep_ms(50);
-    _write(_DISPON);
-    _write(_DISCTRL);
-    _data(0x00);
-    _data(0x02);
-    _write(_MADCTL);
-    _data(m_madctl);
+    write(_DISPON);
+    write(_DISCTRL);
+    sendData(0x00);
+    sendData(0x02);
+    write(_MADCTL);
+    sendData(m_madctl);
 }
 
-void ILI934X::Clear(uint16_t colour)
+void ILI_TFT::Clear(uint16_t colour)
 {
     std::vector<uint16_t> buf(m_dispWidth, __builtin_bswap16(colour));
     uint8_t* pData = reinterpret_cast<uint8_t*>(buf.data());
-    _writeBlock(0, 0, m_dispWidth - 1, m_dispHeight - 1);
+    writeBlock(0, 0, m_dispWidth - 1, m_dispHeight - 1);
     for (uint16_t iy = 0; iy < m_dispHeight; ++iy)
     {
-        _data(pData, m_dispWidth * 2);
+        sendData(pData, m_dispWidth * 2);
     }
 }
 
-void ILI934X::SetQuadrant(QUADRANT eQuadrant)
+void ILI_TFT::SetQuadrant(QUADRANT eQuadrant)
 {
     m_eQuadrant = eQuadrant;
     switch (m_eQuadrant)
@@ -243,12 +250,12 @@ void ILI934X::SetQuadrant(QUADRANT eQuadrant)
     }
 }
 
-std::list<QUADRANT> ILI934X::GetQuadrants()
+std::list<QUADRANT> ILI_TFT::GetQuadrants()
 {
     return quadrantList;
 }
 
-void ILI934X::setRotation(uint16_t screenWidth, uint16_t screenHeight, ROTATION rotation)
+void ILI_TFT::setRotation(uint16_t screenWidth, uint16_t screenHeight, ROTATION rotation)
 {
     switch (rotation)
     {
@@ -294,29 +301,29 @@ void ILI934X::setRotation(uint16_t screenWidth, uint16_t screenHeight, ROTATION 
     }
 }
 
-void ILI934X::createFramebuf()
+void ILI_TFT::createFramebuf()
 {
-    m_pFramebuf = new Framebuf();
+    m_spFramebuf = std::make_shared<Framebuf>();
     switch (m_nQuadrants)
     {
     case 1:
-        m_pFramebuf->Initialize(m_dispWidth, m_dispHeight, RGB565, bReverseBytes);
+        m_spFramebuf->Initialize(m_dispWidth, m_dispHeight, RGB565, bReverseBytes);
         quadrantList = {FULL_FRAME};
         break;
     case 2:
         if (m_dispWidth > m_dispHeight)
         {
-            m_pFramebuf->Initialize(m_dispWidth / 2, m_dispHeight, RGB565, bReverseBytes);
+            m_spFramebuf->Initialize(m_dispWidth / 2, m_dispHeight, RGB565, bReverseBytes);
             quadrantList = {LEFT_HALF, RIGHT_HALF};
         }
         else
         {
-            m_pFramebuf->Initialize(m_dispWidth, m_dispHeight / 2, RGB565, bReverseBytes);
+            m_spFramebuf->Initialize(m_dispWidth, m_dispHeight / 2, RGB565, bReverseBytes);
             quadrantList = {UPPER_HALF, LOWER_HALF};
         }
         break;
     case 4:
-        m_pFramebuf->Initialize(m_dispWidth / 2, m_dispHeight / 2, RGB565, bReverseBytes);
+        m_spFramebuf->Initialize(m_dispWidth / 2, m_dispHeight / 2, RGB565, bReverseBytes);
         quadrantList = {UPPER_LEFT, LOWER_LEFT, UPPER_RIGHT, LOWER_RIGHT};
         break;
     default:
@@ -324,89 +331,89 @@ void ILI934X::createFramebuf()
     }
 }
 
-void ILI934X::SetPixel(int x, int y, uint16_t color)
+void ILI_TFT::SetPixel(int x, int y, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_pFramebuf->setpixel(x, y, color);
+    return m_spFramebuf->setpixel(x, y, color);
 }
 
-uint16_t ILI934X::GetPixel(int x, int y)
+uint16_t ILI_TFT::GetPixel(int x, int y)
 {
     adjustPoint(x, y);
-    return m_pFramebuf->getpixel(x, y);
+    return m_spFramebuf->getpixel(x, y);
 }
 
-void ILI934X::FillRect(int x, int y, int w, int h, uint16_t color)
+void ILI_TFT::FillRect(int x, int y, int w, int h, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_pFramebuf->fillrect(x, y, w, h, color);
+    return m_spFramebuf->fillrect(x, y, w, h, color);
 }
 
-void ILI934X::Fill(uint16_t color)
+void ILI_TFT::Fill(uint16_t color)
 {
-    return m_pFramebuf->fill(color);
+    return m_spFramebuf->fill(color);
 }
 
-void ILI934X::HLine(int x, int y, int w, uint16_t color)
-{
-    adjustPoint(x, y);
-    return m_pFramebuf->hline(x, y, w, color);
-}
-
-void ILI934X::VLine(int x, int y, int h, uint16_t color)
+void ILI_TFT::HLine(int x, int y, int w, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_pFramebuf->vline(x, y, h, color);
+    return m_spFramebuf->hline(x, y, w, color);
 }
 
-void ILI934X::Rect(int x, int y, int w, int h, uint16_t color, bool bFill)
+void ILI_TFT::VLine(int x, int y, int h, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_pFramebuf->rect(x, y, w, h, color, bFill);
+    return m_spFramebuf->vline(x, y, h, color);
 }
 
-void ILI934X::Line(int x1, int y1, int x2, int y2, uint16_t color)
+void ILI_TFT::Rect(int x, int y, int w, int h, uint16_t color, bool bFill)
+{
+    adjustPoint(x, y);
+    return m_spFramebuf->rect(x, y, w, h, color, bFill);
+}
+
+void ILI_TFT::Line(int x1, int y1, int x2, int y2, uint16_t color)
 {
     adjustPoint(x1, y1);
     adjustPoint(x2, y2);
-    return m_pFramebuf->line(x1, y1, x2, y2, color);
+    return m_spFramebuf->line(x1, y1, x2, y2, color);
 }
 
-void ILI934X::Ellipse(int cx, int cy, int xradius, int yradius, uint16_t color, bool bFill, uint8_t mask)
+void ILI_TFT::Ellipse(int cx, int cy, int xradius, int yradius, uint16_t color, bool bFill, uint8_t mask)
 {
     adjustPoint(cx, cy);
-    return m_pFramebuf->ellipse(cx, cy, xradius, yradius, color, bFill, mask);
+    return m_spFramebuf->ellipse(cx, cy, xradius, yradius, color, bFill, mask);
 }
 
-void ILI934X::Text(const char* str, int x, int y, uint16_t color)
+void ILI_TFT::Text(const char* str, int x, int y, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_pFramebuf->text(str, x, y, color);
+    return m_spFramebuf->text(str, x, y, color);
 }
 
-void ILI934X::Show()
+void ILI_TFT::Show()
 {
-    Show(0, 0, m_pFramebuf->width(), m_pFramebuf->height());
+    Show(0, 0, m_spFramebuf->width(), m_spFramebuf->height());
 }
 
-void ILI934X::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
+void ILI_TFT::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
     uint16_t disp_x = x + m_xoff;
     uint16_t disp_y = y + m_yoff;
 
-    uint16_t _x = MIN(m_pFramebuf->width() - 1, MAX(0, x));
-    uint16_t _y = MIN(m_pFramebuf->height() - 1, MAX(0, y));
-    uint16_t _w = MIN(m_pFramebuf->width() - x, MAX(1, w));
-    uint16_t _h = MIN(m_pFramebuf->height() - y, MAX(1, h));
+    uint16_t _x = MIN(m_spFramebuf->width() - 1, MAX(0, x));
+    uint16_t _y = MIN(m_spFramebuf->height() - 1, MAX(0, y));
+    uint16_t _w = MIN(m_spFramebuf->width() - x, MAX(1, w));
+    uint16_t _h = MIN(m_spFramebuf->height() - y, MAX(1, h));
 
-    uint8_t* pSrcData8 = reinterpret_cast<uint8_t*>(m_pFramebuf->buffer());
-    uint16_t fWidth    = m_pFramebuf->width(); // framebuf width
+    uint8_t* pSrcData8 = reinterpret_cast<uint8_t*>(m_spFramebuf->buffer());
+    uint16_t fWidth    = m_spFramebuf->width(); // framebuf width
 
     // This is the simplest, gets ~15fps.
-    // _writeBlock(_x, _y, _x + _w - 1, _y + _h - 1);
+    // writeBlock(_x, _y, _x + _w - 1, _y + _h - 1);
     // for (uint16_t iy = _y; iy < _y + _h; ++iy) // Draw line by line
     // {
-    //     _data(&pSrcData8[(iy * fWidth * 2) + _x], _w * 2);
+    //     data(&pSrcData8[(iy * fWidth * 2) + _x], _w * 2);
     // }
 
     // This is more complicated, gets ~19fps.
@@ -416,7 +423,7 @@ void ILI934X::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     uint16_t numChunks     = _h / linesPerChunk;
     uint16_t linesLeftover = _h - numChunks * linesPerChunk;
 
-    _writeBlock(disp_x, disp_y, disp_x + _w - 1, disp_y + _h - 1);
+    writeBlock(disp_x, disp_y, disp_x + _w - 1, disp_y + _h - 1);
     for (uint16_t nChunk = 0; nChunk < numChunks; ++nChunk)
     {
         for (uint16_t iy = 0; iy < linesPerChunk; ++iy)
@@ -424,7 +431,7 @@ void ILI934X::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
             uint nSrcOffset = ((_y + (iy + nChunk * linesPerChunk)) * fWidth * 2) + (_x * 2);
             memcpy(pTgtData8 + iy * _w * 2, &pSrcData8[nSrcOffset], _w * 2);
         }
-        _data(pTgtData8, linesPerChunk * _w * 2);
+        sendData(pTgtData8, linesPerChunk * _w * 2);
     }
     // Leftover lines
     for (uint16_t iy = 0; iy < linesLeftover; ++iy)
@@ -432,18 +439,18 @@ void ILI934X::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
         uint nSrcOffset = ((_y + (iy + numChunks * linesPerChunk)) * fWidth * 2) + (_x * 2);
         memcpy(pTgtData8 + iy * _w * 2, &pSrcData8[nSrcOffset], _w * 2);
     }
-    _data(pTgtData8, linesLeftover * _w * 2);
+    sendData(pTgtData8, linesLeftover * _w * 2);
 }
 
-void ILI934X::_writeByte(uint8_t data)
+void ILI_TFT::writeByte(uint8_t data)
 {
     spi_write_blocking(m_spi, &data, 1);
 }
 
-void ILI934X::_write(uint8_t cmd, uint8_t* data, size_t dataLen)
+void ILI_TFT::write(uint8_t cmd, uint8_t* data, size_t dataLen)
 {
-    _cs_select();
-    _command_select();
+    cs_select();
+    command_select();
 
     // spi write
     uint8_t commandBuffer[1];
@@ -458,48 +465,50 @@ void ILI934X::_write(uint8_t cmd, uint8_t* data, size_t dataLen)
 
     if (data == NULL)
     {
-        _cs_deselect();
+        cs_deselect();
     }
 
     // do stuff
     if (data != NULL)
     {
-        _data(data, dataLen);
+        sendData(data, dataLen);
     }
 }
 
-void ILI934X::_data(uint16_t data)
+// ILI934X sends one byte of data
+void ILI934X::sendData(uint16_t data)
 {
-    _cs_select();
-    _data_select();
+    cs_select();
+    data_select();
 
-    _writeByte(data & 0xff);
+    writeByte(data & 0xff);
 
-    _cs_deselect();
+    cs_deselect();
 }
 
-void ILI948X::_data(uint16_t data)
+// ILI948X sends two bytes of data
+void ILI948X::sendData(uint16_t data)
 {
-    _cs_select();
-    _data_select();
+    cs_select();
+    data_select();
 
-    _writeByte(data >> 8);
-    _writeByte(data & 0xff);
+    writeByte(data >> 8);
+    writeByte(data & 0xff);
 
-    _cs_deselect();
+    cs_deselect();
 }
 
-void ILI934X::_data(uint8_t* data, size_t dataLen)
+void ILI_TFT::sendData(uint8_t* data, size_t dataLen)
 {
-    _cs_select();
-    _data_select();
+    cs_select();
+    data_select();
 
     spi_write_blocking(m_spi, data, dataLen);
 
-    _cs_deselect();
+    cs_deselect();
 }
 
-void ILI934X::_writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data, size_t dataLen)
+void ILI_TFT::writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data, size_t dataLen)
 {
     uint16_t buffer[2];
     uint8_t* pBuffer = reinterpret_cast<uint8_t*>(buffer);
@@ -507,20 +516,20 @@ void ILI934X::_writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, ui
     buffer[0] = __builtin_bswap16(x0);
     buffer[1] = __builtin_bswap16(x1);
 
-    _write(_CASET);
-    _data(pBuffer[0]);
-    _data(pBuffer[1]);
-    _data(pBuffer[2]);
-    _data(pBuffer[3]);
+    write(_CASET);
+    sendData(pBuffer[0]);
+    sendData(pBuffer[1]);
+    sendData(pBuffer[2]);
+    sendData(pBuffer[3]);
 
     buffer[0] = __builtin_bswap16(y0);
     buffer[1] = __builtin_bswap16(y1);
 
-    _write(_PASET);
-    _data(pBuffer[0]);
-    _data(pBuffer[1]);
-    _data(pBuffer[2]);
-    _data(pBuffer[3]);
+    write(_PASET);
+    sendData(pBuffer[0]);
+    sendData(pBuffer[1]);
+    sendData(pBuffer[2]);
+    sendData(pBuffer[3]);
 
-    _write(_RAMWR, data, dataLen);
+    write(_RAMWR, data, dataLen);
 }

@@ -6,6 +6,17 @@ set(PICO_BOARD pico)
 #set(PICO_BOARD waveshare_rp2040_zero)
 #set(PICO_BOARD seeed_xiao_rp2040)
 
+# TFT display type - enable one of the following
+add_compile_definitions(DISPLAY_ILI934X)
+#add_compile_definitions(DISPLAY_ILI948X)
+# Number of quadrants to use, needed for memory usage
+add_compile_definitions(DISPLAY_QUADRANTS=4)
+# Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments
+#add_compile_definitions(DISPLAY_PICO_RESTOUCH)
+
+# GMT Offset for clock display
+add_compile_definitions(GPSD_GMT_OFFSET=-5.0)
+
 # initialize the SDK based on PICO_SDK_PATH
 # note: this must happen before project()
 include(pico_sdk_import.cmake)
@@ -37,9 +48,20 @@ target_include_directories(gps_tft PUBLIC
     ${CMAKE_CURRENT_LIST_DIR})
 
 if (PICO_BOARD STREQUAL pico_w)
-  target_link_libraries(gps_tft pico_stdlib pico_stdio hardware_gpio hardware_pio hardware_spi pico_cyw43_arch_none)
+  target_link_libraries(gps_tft
+                        pico_stdlib
+                        pico_stdio
+                        hardware_gpio
+                        hardware_pio
+                        hardware_spi
+                        pico_cyw43_arch_none)
 else()
-  target_link_libraries(gps_tft pico_stdlib pico_stdio hardware_gpio hardware_pio hardware_spi)
+  target_link_libraries(gps_tft
+                        pico_stdlib
+                        pico_stdio
+                        hardware_gpio
+                        hardware_pio
+                        hardware_spi)
 endif()
 
 # create map/bin/hex/uf2 file in addition to ELF.

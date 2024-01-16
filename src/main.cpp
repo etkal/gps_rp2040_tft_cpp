@@ -35,9 +35,7 @@
 #define STOP_BITS      1
 #define PARITY         UART_PARITY_NONE
 
-// #define USE_ILI948X
-
-#if defined(USE_ILI948X) // Waveshare Pico-ResTouch-LCD-3.5
+#if defined(DISPLAY_PICO_RESTOUCH) // Waveshare Pico-ResTouch-LCD-3.5
 #define SPI_DEVICE spi1
 #define PIN_DC     8
 #define PIN_CS     9
@@ -145,17 +143,21 @@ int main()
     GPS::Shared spGPS = std::make_shared<GPS>(UART_DEVICE);
 
     // Create the display.  ILI9341 or ILI9488, rotate 270 degrees
-#if defined(USE_ILI948X)
-    ILI934X::Shared spDisplay = std::make_shared<ILI948X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
+#if defined(DISPLAY_ILI948X)
+    ILI_TFT::Shared spDisplay = std::make_shared<ILI948X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
+#elif defined(DISPLAY_ILI934X)
+    ILI_TFT::Shared spDisplay = std::make_shared<ILI934X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
 #else
-    ILI934X::Shared spDisplay = std::make_shared<ILI934X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, R270DEG);
+#error Unsupported display specified
 #endif
 
     // Create the GPS_TFT display object
-    GPS_TFT::Shared spDevice = std::make_shared<GPS_TFT>(spDisplay, spGPS, spLED, -5.0);
+    GPS_TFT::Shared spDevice = std::make_shared<GPS_TFT>(spDisplay, spGPS, spLED, GPSD_GMT_OFFSET);
 
     spDevice->Initialize();
     spDevice->Run();
+
+    cyw43_arch_deinit();
 
     return 0;
 }
