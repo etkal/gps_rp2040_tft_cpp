@@ -1,5 +1,5 @@
 # GPS_RP2040_TFT_cpp
-GPS implementation in C++ using RP2040 with ili9341 TFT display
+GPS implementation in C++ using RP2040 with TFT display
 
 - Background
 

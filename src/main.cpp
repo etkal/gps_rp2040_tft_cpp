@@ -21,11 +21,14 @@
  */
 
 #include <iostream>
-#include "gps_tft.h"
+#include <pico/stdlib.h>
+#include "hardware/adc.h"
 
 #if defined(RASPBERRYPI_PICO_W)
 #include "pico/cyw43_arch.h"
 #endif
+
+#include "gps_tft.h"
 
 #define UART_DEVICE    uart_default             // Default is uart0
 #define PIN_UART_TX    PICO_DEFAULT_UART_TX_PIN // Default is 0
@@ -62,7 +65,7 @@
 #define PIN_MOSI   PICO_DEFAULT_SPI_TX_PIN  // Blue   3
 #define PIN_RST    27                       // Yellow
 #define PIN_DC     28                       // Green
-#define PIN_BL     29                       // Gray
+//#define PIN_BL     6                        // Gray
 #elif defined(WAVESHARE_RP2040_ZERO)
 // RP2040-Zero has default spi1, which is on the bottom, so use spi0
 #define SPI_DEVICE spi0 // override
@@ -83,6 +86,7 @@
 int main()
 {
     stdio_init_all();
+    adc_init();
 
     // Set up UART for GPS device
     uart_init(UART_DEVICE, UART_BAUD_RATE);
@@ -103,9 +107,13 @@ int main()
     gpio_set_dir(PIN_DC, GPIO_OUT);
     gpio_init(PIN_RST);
     gpio_set_dir(PIN_RST, GPIO_OUT);
+
+    // Enable display. Can also just tie the display enable line to 3v3.
+    #if defined(PIN_BL)
     gpio_init(PIN_BL);
     gpio_set_dir(PIN_BL, GPIO_OUT);
-    gpio_put(PIN_BL, 1);
+    gpio_put(PIN_BL, 1); //
+    #endif
 
 #if defined(SEEED_XIAO_RP2040)
     // Clear LED(s) on XIAO (default on)
@@ -155,9 +163,12 @@ int main()
     GPS_TFT::Shared spDevice = std::make_shared<GPS_TFT>(spDisplay, spGPS, spLED, GPSD_GMT_OFFSET);
 
     spDevice->Initialize();
+    // Run the show
     spDevice->Run();
 
+#if defined(RASPBERRYPI_PICO_W)
     cyw43_arch_deinit();
+#endif
 
     return 0;
 }
