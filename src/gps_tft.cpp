@@ -8,15 +8,17 @@
 #include <stdio.h>
 #include <string>
 #include <iostream>
+#include <pico/double.h>
+#include <math.h>
+#include <iomanip>
+
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
 
 #include "ili_tft.h"
 #include "gps_tft.h"
-#include <pico/double.h>
-#include <math.h>
-#include <iomanip>
+#include "power_status.h"
 
 #if !defined(NDEBUG)
 #include <malloc.h>
@@ -109,6 +111,18 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
     uint16_t nWidth  = m_spDisplay->Width();
     uint16_t nHeight = m_spDisplay->Height();
 
+    float vsys    = 0.0;
+    bool bBattery = false;
+    std::string strVsys;
+    if (PICO_OK == power_voltage(&vsys))
+    {
+        power_source(&bBattery);
+        vsys = floorf(vsys * 100) / 100;
+        std::stringstream oss;
+        oss << (bBattery ? "batt: " : "vsys: ") << std::fixed << std::setfill(' ') << std::setprecision(1) << vsys << "v";
+        strVsys = oss.str();
+    }
+
     for (auto nQuadrant : m_spDisplay->GetQuadrants())
     {
         m_spDisplay->SetQuadrant(nQuadrant);
@@ -139,6 +153,10 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
             drawText(1, spGPSData->strLongitude, COLOUR_WHITE, true, X_PAD);
             drawText(2, spGPSData->strAltitude, COLOUR_WHITE, true, X_PAD);
             // drawText(5, spGPSData->strSpeedKts, COLOUR_WHITE, true, X_PAD);
+        }
+        if (!strVsys.empty())
+        {
+            drawText(8, strVsys, COLOUR_WHITE, true, X_PAD);
         }
 
         // Draw clock
