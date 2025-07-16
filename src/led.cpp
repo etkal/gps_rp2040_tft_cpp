@@ -1,7 +1,7 @@
 /*
  * Pico LED class
  *
- * (c) 2024 Erik Tkal
+ * (c) 2025 Erik Tkal
  *
  */
 
@@ -17,11 +17,21 @@ static inline void put_pixel(uint32_t pixel_grb)
     pio_sm_put_blocking(pio0, 0, pixel_grb << 8u);
 }
 
-void LED::Blink_ms(uint duration, uint32_t color)
+// Instead of sleeping, set an alarm to turn off the LED
+static int64_t offAlarmCallback(alarm_id_t id, void* user_data)
+{
+    LED* pThis = reinterpret_cast<LED*>(user_data);
+    if (nullptr != pThis)
+    {
+        pThis->Off();
+    }
+    return false; // don't restart the timer.
+}
+
+void LED::Blink_ms(uint duration)
 {
     On();
-    sleep_ms(duration);
-    Off();
+    add_alarm_in_ms(duration, offAlarmCallback, reinterpret_cast<void*>(this), true);
 }
 
 
@@ -125,9 +135,11 @@ void LED_neo::SetPixel(uint idx, uint32_t color)
     m_vPixels[idx] = color;
 }
 
+
 #if defined(RASPBERRYPI_PICO_W)
 LED_pico_w::LED_pico_w(uint pin)
-    : LED_pico(pin)
+    : m_nPin(pin),
+      m_nColor(led_white)
 {
     Off();
 }
@@ -152,5 +164,15 @@ void LED_pico_w::On()
 void LED_pico_w::Off()
 {
     cyw43_arch_gpio_put(m_nPin, 0);
+}
+
+void LED_pico_w::SetPixel(uint idx, uint32_t color)
+{
+    m_nColor = color;
+}
+
+void LED_pico_w::SetIgnore(std::vector<uint32_t> vIgnore)
+{
+    m_vIgnore = vIgnore;
 }
 #endif
