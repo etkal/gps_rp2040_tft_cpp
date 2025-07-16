@@ -1,7 +1,7 @@
 /*
  * Pico LED class
  *
- * (c) 2024 Erik Tkal
+ * (c) 2025 Erik Tkal
  *
  */
 
@@ -49,15 +49,15 @@ class LED
 public:
     typedef std::shared_ptr<LED> Shared;
 
-    LED(){};
-    virtual ~LED(){};
+    LED() {};
+    virtual ~LED() {};
 
     virtual void Initialize()                       = 0;
     virtual void On()                               = 0;
     virtual void Off()                              = 0;
     virtual void SetPixel(uint idx, uint32_t color) = 0;
-    virtual void SetIgnore(std::vector<uint32_t> vIgnore){};
-    void Blink_ms(uint duration = 50, uint32_t color = led_white);
+    virtual void SetIgnore(std::vector<uint32_t> vIgnore) {};
+    void Blink_ms(uint duration = 50);
 };
 
 class LED_pico : public LED
@@ -66,7 +66,7 @@ public:
     LED_pico(uint pin);
     virtual ~LED_pico();
 
-    void Initialize() override{};
+    void Initialize() override {};
     void On() override;
     void Off() override;
     void SetPixel(uint idx, uint32_t color) override;
@@ -98,13 +98,21 @@ private:
 };
 
 #if defined(RASPBERRYPI_PICO_W)
-class LED_pico_w : public LED_pico
+class LED_pico_w : public LED
 {
 public:
     LED_pico_w(uint pin);
     virtual ~LED_pico_w();
 
-    void On();
-    void Off();
+    void Initialize() override {};
+    void On() override;
+    void Off() override;
+    void SetPixel(uint idx, uint32_t color) override;
+    void SetIgnore(std::vector<uint32_t> vIgnore) override;
+
+protected:
+    uint m_nPin;
+    uint32_t m_nColor;
+    std::vector<uint32_t> m_vIgnore;
 };
 #endif

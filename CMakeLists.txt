@@ -1,21 +1,26 @@
 cmake_minimum_required(VERSION 3.24)
 
 # Set the board type for pin and LED decisions
-set(PICO_BOARD pico)
-#set(PICO_BOARD pico_w)
+#set(PICO_BOARD pico)
+set(PICO_BOARD pico_w)
 #set(PICO_BOARD waveshare_rp2040_zero)
 #set(PICO_BOARD seeed_xiao_rp2040)
 
 # TFT display type - enable one of the following
-add_compile_definitions(DISPLAY_ILI934X)
-#add_compile_definitions(DISPLAY_ILI948X)
+#add_compile_definitions(DISPLAY_ILI934X)
+add_compile_definitions(DISPLAY_ILI948X)
 # Number of quadrants to use, needed for memory usage
 add_compile_definitions(DISPLAY_QUADRANTS=4)
 # Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments
-#add_compile_definitions(DISPLAY_PICO_RESTOUCH)
+add_compile_definitions(DISPLAY_PICO_RESTOUCH)
 
 # GMT Offset for clock display
-add_compile_definitions(GPSD_GMT_OFFSET=-5.0)
+add_compile_definitions(GPSD_GMT_OFFSET=-4.0)
+
+# Enable to display VSYS voltage
+if ((PICO_BOARD STREQUAL pico) OR (PICO_BOARD STREQUAL pico_w))
+  add_compile_definitions(VOLTAGE_DISPLAY)
+endif()
 
 # initialize the SDK based on PICO_SDK_PATH
 # note: this must happen before project()

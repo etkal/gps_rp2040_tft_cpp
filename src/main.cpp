@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Erik Tkal
+ * Copyright (c) 2025 Erik Tkal
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,9 +30,16 @@
 
 #include "gps_tft.h"
 
-#define UART_DEVICE    uart_default             // Default is uart0
-#define PIN_UART_TX    PICO_DEFAULT_UART_TX_PIN // Default is 0
-#define PIN_UART_RX    PICO_DEFAULT_UART_RX_PIN // Default is 1
+#define UART0_DEVICE uart0                    // Default is uart0
+#define PIN_UART0_TX PICO_DEFAULT_UART_TX_PIN // Default is 0
+#define PIN_UART0_RX PICO_DEFAULT_UART_RX_PIN // Default is 1
+
+#if defined(WAVESHARE_RP2040_ZERO)
+#define UART1_DEVICE uart1 // uart1 for echo
+#define PIN_UART1_TX 4
+#define PIN_UART1_RX 5
+#endif
+
 #define UART_BAUD_RATE 9600
 #define DATA_BITS      8
 #define STOP_BITS      1
@@ -65,7 +72,7 @@
 #define PIN_MOSI   PICO_DEFAULT_SPI_TX_PIN  // Blue   3
 #define PIN_RST    27                       // Yellow
 #define PIN_DC     28                       // Green
-//#define PIN_BL     6                        // Gray
+// #define PIN_BL     6                        // Gray
 #elif defined(WAVESHARE_RP2040_ZERO)
 // RP2040-Zero has default spi1, which is on the bottom, so use spi0
 #define SPI_DEVICE spi0 // override
@@ -85,15 +92,28 @@
 
 int main()
 {
-    stdio_init_all();
+    stdio_usb_init();
     adc_init();
 
+#if !defined(NDEBUG)
+    sleep_ms(10000);
+#endif
+
     // Set up UART for GPS device
-    uart_init(UART_DEVICE, UART_BAUD_RATE);
-    gpio_set_function(PIN_UART_TX, GPIO_FUNC_UART);
-    gpio_set_function(PIN_UART_RX, GPIO_FUNC_UART);
-    uart_set_hw_flow(UART_DEVICE, false, false);
-    uart_set_format(UART_DEVICE, DATA_BITS, STOP_BITS, PARITY);
+    uart_init(UART0_DEVICE, UART_BAUD_RATE);
+    gpio_set_function(PIN_UART0_TX, GPIO_FUNC_UART);
+    gpio_set_function(PIN_UART0_RX, GPIO_FUNC_UART);
+    uart_set_hw_flow(UART0_DEVICE, false, false);
+    uart_set_format(UART0_DEVICE, DATA_BITS, STOP_BITS, PARITY);
+
+#if defined(UART1_DEVICE)
+    // Set up UART for echo device
+    uart_init(UART1_DEVICE, UART_BAUD_RATE);
+    gpio_set_function(PIN_UART1_TX, GPIO_FUNC_UART);
+    gpio_set_function(PIN_UART1_RX, GPIO_FUNC_UART);
+    uart_set_hw_flow(UART1_DEVICE, false, false);
+    uart_set_format(UART1_DEVICE, DATA_BITS, STOP_BITS, PARITY);
+#endif
 
     // Set up the TFT display
     spi_init(SPI_DEVICE, 80000000);
@@ -108,12 +128,12 @@ int main()
     gpio_init(PIN_RST);
     gpio_set_dir(PIN_RST, GPIO_OUT);
 
-    // Enable display. Can also just tie the display enable line to 3v3.
-    #if defined(PIN_BL)
+// Enable display. Can also just tie the display enable line to 3v3.
+#if defined(PIN_BL)
     gpio_init(PIN_BL);
     gpio_set_dir(PIN_BL, GPIO_OUT);
     gpio_put(PIN_BL, 1); //
-    #endif
+#endif
 
 #if defined(SEEED_XIAO_RP2040)
     // Clear LED(s) on XIAO (default on)
@@ -138,17 +158,21 @@ int main()
     spLED->SetPixel(0, led_green);
 #elif defined(USE_LED_PIN)
     spLED = std::make_shared<LED_pico>(USE_LED_PIN);
-    spLED->SetIgnore({led_red});
+    spLED->SetIgnore({led_red, led_magenta});
 #elif defined(PICO_DEFAULT_LED_PIN)
     spLED = std::make_shared<LED_pico>(PICO_DEFAULT_LED_PIN);
-    spLED->SetIgnore({led_red});
+    spLED->SetIgnore({led_red, led_magenta});
 #elif defined(RASPBERRYPI_PICO_W)
     spLED = std::make_shared<LED_pico_w>(CYW43_WL_GPIO_LED_PIN);
-    spLED->SetIgnore({led_red});
+    spLED->SetIgnore({led_red, led_magenta});
 #endif
 
-    // Create the GPS object
-    GPS::Shared spGPS = std::make_shared<GPS>(UART_DEVICE);
+// Create the GPS object
+#if defined(UART1_DEVICE)
+    GPS::Shared spGPS = std::make_shared<GPS>(UART0_DEVICE, UART1_DEVICE);
+#else
+    GPS::Shared spGPS = std::make_shared<GPS>(UART0_DEVICE);
+#endif
 
     // Create the display.  ILI9341 or ILI9488, rotate 270 degrees
 #if defined(DISPLAY_ILI948X)
