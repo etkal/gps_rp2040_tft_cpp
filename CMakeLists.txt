@@ -15,7 +15,7 @@ add_compile_definitions(DISPLAY_QUADRANTS=4)
 add_compile_definitions(DISPLAY_PICO_RESTOUCH)
 
 # GMT Offset for clock display
-add_compile_definitions(GPSD_GMT_OFFSET=-4.0)
+add_compile_definitions(GPSD_GMT_OFFSET=-5.0)
 
 # Enable to display VSYS voltage
 if ((PICO_BOARD STREQUAL pico) OR (PICO_BOARD STREQUAL pico_w))
@@ -30,6 +30,8 @@ include(pico_sdk_import.cmake)
 project(gps_tft C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # initialize the Raspberry Pi Pico SDK
 pico_sdk_init()
 

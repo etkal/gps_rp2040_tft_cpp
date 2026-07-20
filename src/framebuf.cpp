@@ -32,6 +32,7 @@
 #include <iostream>
 
 #include "framebuf.h"
+#include "font.h"
 #include "font_petme128_8x8.h"
 
 using std::max;
@@ -374,6 +375,107 @@ void Framebuf::text(const char* str, int x, int y, uint16_t color)
                 }
             }
         }
+    }
+}
+
+void Framebuf::text(const char* str, int x, int y, uint16_t color, int scale)
+{
+    if (scale <= 1)
+    {
+        return text(str, x, y, color);
+    }
+
+    // loop over chars
+    for (; *str; ++str)
+    {
+        int chr = *(uint8_t*)str;
+        if (chr < 32 || chr > 127)
+        {
+            chr = 127;
+        }
+        const uint8_t* chr_data = &font_petme128_8x8[(chr - 32) * 8];
+
+        int xchar = x; // starting x for this character
+        for (int j = 0; j < 8; j++, xchar += scale)
+        {
+            if (0 <= xchar && xchar < m_nWidth)
+            {
+                uint vline_data = chr_data[j];
+                for (int row = 0; vline_data; vline_data >>= 1, ++row)
+                {
+                    if (vline_data & 1)
+                    {
+                        int ybase = y + row * scale;
+                        for (int sx = 0; sx < scale; ++sx)
+                        {
+                            for (int sy = 0; sy < scale; ++sy)
+                            {
+                                int px = xchar + sx;
+                                int py = ybase + sy;
+                                if (0 <= px && px < m_nWidth && 0 <= py && py < m_nHeight)
+                                {
+                                    setpixel(px, py, color);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        x += 8 * scale; // advance to next character
+    }
+}
+
+void Framebuf::text(const char* str, int x, int y, uint16_t color, const BitmapFont& font, int scale)
+{
+    if (scale < 1)
+    {
+        scale = 1;
+    }
+
+    const int first = font.firstChar;
+    const int count = font.charCount;
+    const int gw = font.width;
+    const int gh = font.height;
+    const int rowBytes = font.rowBytes();
+    const size_t glyphSize = rowBytes * gh;
+
+    for (; *str; ++str)
+    {
+        int chr = (uint8_t)*str;
+        if (chr < first || chr >= first + count)
+        {
+            chr = first + count - 1;
+        }
+        const uint8_t* glyph = font.data + (chr - first) * glyphSize;
+
+        for (int ry = 0; ry < gh; ++ry)
+        {
+            const uint8_t* rowPtr = glyph + ry * rowBytes;
+            for (int rx = 0; rx < gw; ++rx)
+            {
+                int byteIndex = rx / 8;
+                uint8_t mask = 0x80 >> (rx % 8);
+                if (rowPtr[byteIndex] & mask)
+                {
+                    int xbase = x + rx * scale;
+                    int ybase = y + ry * scale;
+                    for (int sx = 0; sx < scale; ++sx)
+                    {
+                        for (int sy = 0; sy < scale; ++sy)
+                        {
+                            int px = xbase + sx;
+                            int py = ybase + sy;
+                            if (0 <= px && px < (int)m_nWidth && 0 <= py && py < (int)m_nHeight)
+                            {
+                                setpixel(px, py, color);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        x += gw * scale;
     }
 }
 

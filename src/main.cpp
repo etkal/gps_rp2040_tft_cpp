@@ -29,6 +29,7 @@
 #endif
 
 #include "gps_tft.h"
+#include "font_factory.h"
 
 #define UART0_DEVICE uart0                    // Default is uart0
 #define PIN_UART0_TX PICO_DEFAULT_UART_TX_PIN // Default is 0
@@ -89,6 +90,14 @@
 
 // #define USE_WS2812_PIN 12 // Override
 // #define USE_LED_PIN 16    // Override
+
+extern "C"
+{
+    int _getentropy(void* buffer, size_t length)
+    {
+        return ENOSYS;
+    }
+}
 
 int main()
 {
@@ -187,6 +196,17 @@ int main()
     GPS_TFT::Shared spDevice = std::make_shared<GPS_TFT>(spDisplay, spGPS, spLED, GPSD_GMT_OFFSET);
 
     spDevice->Initialize();
+
+    // Startup demo: draw a visible large-font title before the main app runs.
+    const BitmapFont* largeFont = get_scaled_petme_font(2); // 16x16
+    if (largeFont)
+    {
+        spDisplay->Fill(COLOUR_BLACK);
+        spDisplay->Text("GPS", 10, 10, COLOUR_WHITE, *largeFont);
+        spDisplay->Show();
+        sleep_ms(1000);
+    }
+
     // Run the show
     spDevice->Run();
 

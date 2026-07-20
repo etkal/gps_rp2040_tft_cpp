@@ -85,27 +85,13 @@ ILI_TFT::ILI_TFT(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION 
 {
 }
 
+#if defined(DISPLAY_ILI934X)
 ILI934X::ILI934X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
     : ILI_TFT(spi, cs, dc, rst, rotation)
 {
 }
 
-ILI948X::ILI948X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
-    : ILI_TFT(spi, cs, dc, rst, rotation)
-{
-}
-
 void ILI934X::Reset()
-{
-    gpio_put(m_rst, 1);
-    sleep_ms(50);
-    gpio_put(m_rst, 0);
-    sleep_ms(50);
-    gpio_put(m_rst, 1);
-    sleep_ms(50);
-}
-
-void ILI948X::Reset()
 {
     gpio_put(m_rst, 1);
     sleep_ms(50);
@@ -146,6 +132,34 @@ void ILI934X::Initialize()
 
     write(_SLPOUT);
     write(_DISPON);
+}
+
+// ILI934X sends one byte of data
+void ILI934X::sendData(uint16_t data)
+{
+    cs_select();
+    data_select();
+
+    writeByte(data & 0xff);
+
+    cs_deselect();
+}
+#endif // DISPLAY_ILI934X
+
+#if defined(DISPLAY_ILI948X)
+ILI948X::ILI948X(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
+    : ILI_TFT(spi, cs, dc, rst, rotation)
+{
+}
+
+void ILI948X::Reset()
+{
+    gpio_put(m_rst, 1);
+    sleep_ms(50);
+    gpio_put(m_rst, 0);
+    sleep_ms(50);
+    gpio_put(m_rst, 1);
+    sleep_ms(50);
 }
 
 void ILI948X::Initialize()
@@ -209,6 +223,19 @@ void ILI948X::Initialize()
     write(_MADCTL);
     sendData(m_madctl);
 }
+
+// ILI948X sends two bytes of data
+void ILI948X::sendData(uint16_t data)
+{
+    cs_select();
+    data_select();
+
+    writeByte(data >> 8);
+    writeByte(data & 0xff);
+
+    cs_deselect();
+}
+#endif // DISPLAY_ILI948X
 
 void ILI_TFT::Clear(uint16_t colour)
 {
@@ -391,6 +418,18 @@ void ILI_TFT::Text(const char* str, int x, int y, uint16_t color)
     return m_spFramebuf->text(str, x, y, color);
 }
 
+void ILI_TFT::Text(const char* str, int x, int y, uint16_t color, int scale)
+{
+    adjustPoint(x, y);
+    return m_spFramebuf->text(str, x, y, color, scale);
+}
+
+void ILI_TFT::Text(const char* str, int x, int y, uint16_t color, const BitmapFont& font, int scale)
+{
+    adjustPoint(x, y);
+    return m_spFramebuf->text(str, x, y, color, font, scale);
+}
+
 void ILI_TFT::Show()
 {
     Show(0, 0, m_spFramebuf->width(), m_spFramebuf->height());
@@ -473,29 +512,6 @@ void ILI_TFT::write(uint8_t cmd, uint8_t* data, size_t dataLen)
     {
         sendData(data, dataLen);
     }
-}
-
-// ILI934X sends one byte of data
-void ILI934X::sendData(uint16_t data)
-{
-    cs_select();
-    data_select();
-
-    writeByte(data & 0xff);
-
-    cs_deselect();
-}
-
-// ILI948X sends two bytes of data
-void ILI948X::sendData(uint16_t data)
-{
-    cs_select();
-    data_select();
-
-    writeByte(data >> 8);
-    writeByte(data & 0xff);
-
-    cs_deselect();
 }
 
 void ILI_TFT::sendData(uint8_t* data, size_t dataLen)

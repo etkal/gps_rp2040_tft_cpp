@@ -9,6 +9,7 @@
 
 #include "pico/stdlib.h"
 #include <memory>
+#include "font.h"
 
 typedef enum ePixelFormat
 {
@@ -49,6 +50,10 @@ public:
     void line(int x1, int y1, int x2, int y2, uint16_t color);
     void ellipse(int cx, int cy, int xradius, int yradius, uint16_t color, bool bFill = false, uint8_t mask = ELLIPSE_MASK_ALL);
     void text(const char* str, int x, int y, uint16_t color);
+    // Draw text with integer scaling factor (1 = normal size)
+    void text(const char* str, int x, int y, uint16_t color, int scale);
+    // Draw text using a bitmap font
+    void text(const char* str, int x, int y, uint16_t color, const BitmapFont& font, int scale = 1);
 
     void* buffer()
     {
