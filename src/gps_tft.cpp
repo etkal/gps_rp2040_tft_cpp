@@ -1,7 +1,7 @@
 /*
  * GPS using TFT display
  *
- * Copyright (c) 2025 Erik Tkal
+ * Copyright (c) 2025-2026 Erik Tkal
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,7 @@
 #include "ili_tft.h"
 #include "gps_tft.h"
 #include "power_status.h"
+#include "font_factory.h"
 
 #if !defined(NDEBUG)
 #include <malloc.h>
@@ -52,15 +53,6 @@ static uint32_t getFreeHeap()
 #endif
 
 #define SAT_ICON_RADIUS 4
-
-constexpr uint CHAR_WIDTH  = 8;
-constexpr uint CHAR_HEIGHT = 8;
-constexpr uint LINE_HEIGHT = (CHAR_HEIGHT + 1);
-constexpr uint COL_WIDTH   = (CHAR_WIDTH);
-constexpr uint PAD_CHARS_X = 2;
-constexpr uint PAD_CHARS_Y = 2;
-constexpr uint X_PAD       = PAD_CHARS_X * CHAR_WIDTH;
-constexpr uint Y_PAD       = PAD_CHARS_Y * LINE_HEIGHT;
 
 constexpr double pi = 3.14159265359;
 
@@ -80,11 +72,17 @@ void GPS_TFT::Initialize()
 {
     m_spDisplay->Reset();
     m_spDisplay->Initialize();
+    for (auto nQuadrant : m_spDisplay->GetQuadrants())
+    {
+        m_spDisplay->SetQuadrant(nQuadrant);
+        m_spDisplay->Fill(COLOUR_BLACK);
+        m_spDisplay->Show();
+    }
 
-    m_spDisplay->Clear(COLOUR_BLACK);
-
-    m_spDisplay->SetQuadrant(m_spDisplay->GetQuadrants().front());
-    m_spDisplay->Fill(COLOUR_BLACK);
+    // Initialize display with Terminus font 10x18
+    m_spDisplay->SetFont(get_recommended_font(18));
+    auto nQuadrant = m_spDisplay->GetQuadrants().front();
+    m_spDisplay->SetQuadrant(nQuadrant);
     drawText(0, "Waiting for GPS", COLOUR_WHITE, false, 0);
     m_spDisplay->Show();
 
@@ -127,6 +125,12 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
     uint16_t nWidth  = m_spDisplay->Width();
     uint16_t nHeight = m_spDisplay->Height();
 
+    // Compute padding dynamically from font dimensions
+    constexpr uint PAD_CHARS_X = 1;
+    constexpr uint PAD_CHARS_Y = 1;
+    uint X_PAD                 = PAD_CHARS_X * getCharWidth();
+    uint Y_PAD                 = PAD_CHARS_Y * (getCharHeight() + 1);
+
 #if defined(VOLTAGE_DISPLAY)
     float vsys    = 0.0;
     bool bBattery = false;
@@ -163,7 +167,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
 
         if (!spGPSData->strGPSTime.empty())
         {
-            drawText(6, spGPSData->strGPSTime, COLOUR_WHITE, true, X_PAD);
+            drawText(5, spGPSData->strGPSTime, COLOUR_WHITE, true, X_PAD);
         }
         if (!spGPSData->strLatitude.empty())
         {
@@ -176,16 +180,17 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
 #if defined(VOLTAGE_DISPLAY)
         if (!strVsys.empty())
         {
-            drawText(8, strVsys, COLOUR_WHITE, true, X_PAD);
+            drawText(6, strVsys, COLOUR_WHITE, true, X_PAD);
         }
 #endif
 
         // Draw clock
         if (!spGPSData->strGPSTime.empty())
         {
-            uint radius = m_spDisplay->Width() <= 320 ? LINE_HEIGHT * 6 / 2 : LINE_HEIGHT * 10 / 2;
-            uint xPos   = m_spDisplay->Width() > m_spDisplay->Height() ? nWidth / 2 : nWidth / 3;
-            drawClock(xPos, LINE_HEIGHT * PAD_CHARS_Y, radius, spGPSData->strGPSTime);
+            uint lineHeight = getCharHeight() + 1;
+            uint radius     = m_spDisplay->Height() / 8;
+            uint xPos       = m_spDisplay->Width() > m_spDisplay->Height() ? nWidth / 2 : nWidth / 3;
+            drawClock(xPos, lineHeight * PAD_CHARS_Y, radius, spGPSData->strGPSTime);
         }
 
         // Draw bar graph
@@ -218,7 +223,8 @@ void GPS_TFT::drawSatGrid(uint xCenter, uint yCenter, uint radius, uint nRings)
 
     m_spDisplay->VLine(xCenter, yCenter - radius - 2, 2 * radius + 5, COLOUR_WHITE);
     m_spDisplay->HLine(xCenter - radius - 2, yCenter, 2 * radius + 5, COLOUR_WHITE);
-    m_spDisplay->Text("N", xCenter - CHAR_WIDTH / 2, yCenter - radius - CHAR_HEIGHT, COLOUR_RED);
+    m_spDisplay->Text("N", xCenter - getCharWidth() / 2, yCenter - radius - getCharHeight(), COLOUR_RED);
+
     // m_spDisplay->Text("'", xCenter-6, yCenter-radius-CHAR_HEIGHT/2, COLOUR_RED);
     // m_spDisplay->Text("`", xCenter-2, yCenter-radius-CHAR_HEIGHT/2, COLOUR_RED);
 
@@ -264,11 +270,18 @@ void GPS_TFT::drawCircleSat(uint gridCenterX,
 
 void GPS_TFT::drawBarGraph(uint x, uint y, uint width, uint height)
 {
-    constexpr auto nMaxSats = 16;
-    uint barDelta           = std::max(std::min(CHAR_WIDTH + 4, width / nMaxSats), CHAR_WIDTH);
-    uint barWidth           = barDelta - 2;
-    uint barPosX            = x + width - (m_spGPSData->mSatList.size() * barDelta);
-    uint barHeightMax       = height - LINE_HEIGHT * 2;
+    uint nMaxSats = 16;
+
+    const BitmapFont* pFont = get_recommended_font(12); // 6x12, narrowest font for bar graph
+    bool bNarrow = (nMaxSats * (2 * (pFont->width + 4)) > width);
+
+    uint charWidth    = bNarrow ? pFont->width : getCharWidth();
+    uint charHeight   = bNarrow ? pFont->height : getCharHeight();
+    uint barDelta     = bNarrow ? std::max(std::min(charWidth * 2 + 4, width / nMaxSats), charWidth * 2)
+                                : std::max(std::min(charWidth + 4, width / nMaxSats), charWidth);
+    uint barWidth     = barDelta - 2;
+    uint barPosX      = x + width - (m_spGPSData->mSatList.size() * barDelta);
+    uint barHeightMax = height - (charHeight + 1) * 2;
 
     for (auto oEntry : m_spGPSData->mSatList)
     {
@@ -278,12 +291,21 @@ void GPS_TFT::drawBarGraph(uint x, uint y, uint width, uint height)
         uint baseLineY = y + barHeightMax;
         m_spDisplay->HLine(barPosX, baseLineY, barDelta, COLOUR_WHITE);
         uint nSat = oSat.m_num;
+
         std::stringstream oss;
         oss << std::fixed << std::setw(2) << std::setfill('0') << std::setprecision(0) << nSat;
         std::string strSatNum = oss.str();
-        uint charPosX         = barPosX + (barDelta - CHAR_WIDTH) / 2;
-        m_spDisplay->Text(strSatNum.substr(0, 1).c_str(), charPosX, baseLineY + 2, COLOUR_WHITE);
-        m_spDisplay->Text(strSatNum.substr(1, 1).c_str(), charPosX, baseLineY + CHAR_HEIGHT + 2, COLOUR_WHITE);
+
+        uint charPosX = bNarrow ? barPosX + (barDelta - (2 * charWidth)) / 2 : barPosX + (barDelta - charWidth) / 2;
+        if (bNarrow)
+        {
+            m_spDisplay->Text(strSatNum.c_str(), charPosX, baseLineY + 2, COLOUR_WHITE, *pFont);
+        }
+        else
+        {
+            m_spDisplay->Text(strSatNum.substr(0, 1).c_str(), charPosX, baseLineY + 2, COLOUR_WHITE);
+            m_spDisplay->Text(strSatNum.substr(1, 1).c_str(), charPosX, baseLineY + charHeight, COLOUR_WHITE);
+        }
         if (barHeight > 0)
         {
             m_spDisplay->Rect(barPosX + 1, baseLineY - barHeight + 1, barWidth, barHeight, COLOUR_WHITE);
@@ -351,16 +373,19 @@ void GPS_TFT::drawClock(uint x, uint y, uint radius, std::string strTime)
 
 int GPS_TFT::linePos(int nLine)
 {
+    constexpr uint PAD_CHARS_Y = 1;
+    uint lineHeight            = getCharHeight() + 1;
     if (nLine >= 0)
-        return (nLine + PAD_CHARS_Y) * LINE_HEIGHT;
+        return (nLine + PAD_CHARS_Y) * lineHeight;
     else
-        return m_spDisplay->Height() + 1 + ((nLine - PAD_CHARS_Y) * LINE_HEIGHT);
+        return m_spDisplay->Height() + 1 + ((nLine - PAD_CHARS_Y) * lineHeight);
 }
 
 void GPS_TFT::drawText(int nLine, std::string strText, uint16_t color, bool bRightAlign, uint nPadding)
 {
-    int x = (!bRightAlign) ? 0 : m_spDisplay->Width() - (strText.length() * COL_WIDTH);
-    int y = linePos(nLine);
+    uint charWidth = getCharWidth();
+    int x          = (!bRightAlign) ? 0 : m_spDisplay->Width() - (strText.length() * charWidth);
+    int y          = linePos(nLine);
     x += bRightAlign ? -nPadding : nPadding;
     m_spDisplay->Text(strText.c_str(), x, y, color);
 }

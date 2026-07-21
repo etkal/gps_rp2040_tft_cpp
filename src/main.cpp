@@ -105,7 +105,7 @@ int main()
     adc_init();
 
 #if !defined(NDEBUG)
-    sleep_ms(10000);
+    sleep_ms(3000);
 #endif
 
     // Set up UART for GPS device
@@ -197,15 +197,40 @@ int main()
 
     spDevice->Initialize();
 
-    // Startup demo: draw a visible large-font title before the main app runs.
-    const BitmapFont* largeFont = get_scaled_petme_font(2); // 16x16
-    if (largeFont)
+#if 0
+    // Font demo: display all 6 fonts sorted by increasing height
     {
+        const BitmapFont* fonts[6] = {
+            get_terminus_font(8),  // PetMe 8x8
+            get_terminus_font(12), // Terminus 6x12
+            get_terminus_font(14), // Terminus 8x14
+            get_terminus_font(18), // Terminus 10x18
+            get_terminus_font(24), // Terminus 12x24
+            get_terminus_font(32), // Terminus 16x32
+        };
+        const char* labels[6] = {
+            "PetMe 8x8",
+            "Terminus 6x12",
+            "Terminus 8x14",
+            "Terminus 10x18",
+            "Terminus 12x24",
+            "Terminus 16x32",
+        };
+
         spDisplay->Fill(COLOUR_BLACK);
-        spDisplay->Text("GPS", 10, 10, COLOUR_WHITE, *largeFont);
+        int y = 0;
+        for (int i = 0; i < 6; ++i)
+        {
+            if (fonts[i] && y + fonts[i]->height <= 240)
+            {
+                spDisplay->Text(labels[i], 0, y, COLOUR_AQUA, *fonts[i]);
+                y += fonts[i]->height + 2;
+            }
+        }
         spDisplay->Show();
-        sleep_ms(1000);
+        sleep_ms(5000);
     }
+#endif
 
     // Run the show
     spDevice->Run();

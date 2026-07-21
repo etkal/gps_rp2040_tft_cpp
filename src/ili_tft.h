@@ -185,6 +185,22 @@ public:
     void Text(const char* str, int x, int y, uint16_t color, int scale);
     void Text(const char* str, int x, int y, uint16_t color, const BitmapFont& font, int scale = 1);
 
+    // Set the default font for Text() calls
+    void SetFont(const BitmapFont* pFont)
+    {
+        if (m_spFramebuf)
+            m_spFramebuf->SetFont(pFont);
+    }
+    const BitmapFont* GetFont() const
+    {
+        return m_spFramebuf ? m_spFramebuf->GetFont() : nullptr;
+    }
+    void ClearFont()
+    {
+        if (m_spFramebuf)
+            m_spFramebuf->ClearFont();
+    }
+
     static inline uint16_t Colour565(uint8_t r, uint8_t g, uint8_t b)
     {
         return (((r >> 3) & 0x1f) << 11) | (((g >> 2) & 0x3f) << 5) | ((b >> 3) & 0x1f);

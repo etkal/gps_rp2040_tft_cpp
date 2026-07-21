@@ -15,7 +15,7 @@ add_compile_definitions(DISPLAY_QUADRANTS=4)
 add_compile_definitions(DISPLAY_PICO_RESTOUCH)
 
 # GMT Offset for clock display
-add_compile_definitions(GPSD_GMT_OFFSET=-5.0)
+add_compile_definitions(GPSD_GMT_OFFSET=-4.0)
 
 # Enable to display VSYS voltage
 if ((PICO_BOARD STREQUAL pico) OR (PICO_BOARD STREQUAL pico_w))
