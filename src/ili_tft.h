@@ -56,6 +56,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <hardware/spi.h>
 #include <hardware/gpio.h>
 #include "framebuf.h"
+#include "font.h"
 
 // ILI TFT commands
 //
@@ -181,6 +182,24 @@ public:
     void Line(int x1, int y1, int x2, int y2, uint16_t color);
     void Ellipse(int cx, int cy, int xradius, int yradius, uint16_t color, bool bFill = false, uint8_t mask = ELLIPSE_MASK_ALL);
     void Text(const char* str, int x, int y, uint16_t color);
+    void Text(const char* str, int x, int y, uint16_t color, int scale);
+    void Text(const char* str, int x, int y, uint16_t color, const BitmapFont& font, int scale = 1);
+
+    // Set the default font for Text() calls
+    void SetFont(const BitmapFont* pFont)
+    {
+        if (m_spFramebuf)
+            m_spFramebuf->SetFont(pFont);
+    }
+    const BitmapFont* GetFont() const
+    {
+        return m_spFramebuf ? m_spFramebuf->GetFont() : nullptr;
+    }
+    void ClearFont()
+    {
+        if (m_spFramebuf)
+            m_spFramebuf->ClearFont();
+    }
 
     static inline uint16_t Colour565(uint8_t r, uint8_t g, uint8_t b)
     {
@@ -247,6 +266,7 @@ protected:
 
 // ILI934X-specific TFT class
 //
+#if defined(DISPLAY_ILI934X)
 class ILI934X : public ILI_TFT
 {
 public:
@@ -259,9 +279,11 @@ public:
 private:
     void sendData(uint16_t data) override;
 };
+#endif // DISPLAY_ILI934X
 
 // ILI948X-specific TFT class
 //
+#if defined(DISPLAY_ILI948X)
 class ILI948X : public ILI_TFT
 {
 public:
@@ -274,3 +296,4 @@ public:
 private:
     void sendData(uint16_t data) override;
 };
+#endif // DISPLAY_ILI948X

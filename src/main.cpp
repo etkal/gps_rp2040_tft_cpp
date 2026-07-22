@@ -29,6 +29,7 @@
 #endif
 
 #include "gps_tft.h"
+#include "font_factory.h"
 
 #define UART0_DEVICE uart0                    // Default is uart0
 #define PIN_UART0_TX PICO_DEFAULT_UART_TX_PIN // Default is 0
@@ -90,13 +91,21 @@
 // #define USE_WS2812_PIN 12 // Override
 // #define USE_LED_PIN 16    // Override
 
+extern "C"
+{
+    int _getentropy(void* buffer, size_t length)
+    {
+        return ENOSYS;
+    }
+}
+
 int main()
 {
     stdio_usb_init();
     adc_init();
 
 #if !defined(NDEBUG)
-    sleep_ms(10000);
+    sleep_ms(3000);
 #endif
 
     // Set up UART for GPS device
@@ -187,6 +196,42 @@ int main()
     GPS_TFT::Shared spDevice = std::make_shared<GPS_TFT>(spDisplay, spGPS, spLED, GPSD_GMT_OFFSET);
 
     spDevice->Initialize();
+
+#if 0
+    // Font demo: display all 6 fonts sorted by increasing height
+    {
+        const BitmapFont* fonts[6] = {
+            get_terminus_font(8),  // PetMe 8x8
+            get_terminus_font(12), // Terminus 6x12
+            get_terminus_font(14), // Terminus 8x14
+            get_terminus_font(18), // Terminus 10x18
+            get_terminus_font(24), // Terminus 12x24
+            get_terminus_font(32), // Terminus 16x32
+        };
+        const char* labels[6] = {
+            "PetMe 8x8",
+            "Terminus 6x12",
+            "Terminus 8x14",
+            "Terminus 10x18",
+            "Terminus 12x24",
+            "Terminus 16x32",
+        };
+
+        spDisplay->Fill(COLOUR_BLACK);
+        int y = 0;
+        for (int i = 0; i < 6; ++i)
+        {
+            if (fonts[i] && y + fonts[i]->height <= 240)
+            {
+                spDisplay->Text(labels[i], 0, y, COLOUR_AQUA, *fonts[i]);
+                y += fonts[i]->height + 2;
+            }
+        }
+        spDisplay->Show();
+        sleep_ms(5000);
+    }
+#endif
+
     // Run the show
     spDevice->Run();
 

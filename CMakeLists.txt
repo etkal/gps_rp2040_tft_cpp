@@ -30,6 +30,8 @@ include(pico_sdk_import.cmake)
 project(gps_tft C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # initialize the Raspberry Pi Pico SDK
 pico_sdk_init()
 

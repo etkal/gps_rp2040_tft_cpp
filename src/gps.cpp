@@ -32,6 +32,7 @@
 typedef enum eSentenceType
 {
     kGPGGA,
+    kGPGLL,
     kGPGSA,
     kGPGSV,
     kGPRMC,
@@ -42,6 +43,7 @@ typedef enum eSentenceType
 
 static std::map<std::string, eSentenceType> g_SentenceTypeMap = {
     {"$GPGGA", kGPGGA},
+    {"$GPGLL", kGPGLL},
     {"$GPGSA", kGPGSA},
     {"$GPGSV", kGPGSV},
     {"$GPRMC", kGPRMC},
@@ -190,7 +192,6 @@ bool GPS::processSentence(std::string strSentence)
 
     if (g_SentenceTypeMap.find(vElems[0]) == g_SentenceTypeMap.end())
     {
-        printf("Not handling %s\n", vElems[0].c_str());
         return false;
     }
 

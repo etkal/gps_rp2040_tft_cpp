@@ -24,6 +24,29 @@ GPS implementation in C++ using RP2040 with TFT display
 
   In the high level CMakeLists.txt some specification is required (e.g. platform, display, GMT offset).
 
+- Large fonts
+
+  This project supports dedicated bitmap header fonts as well as integer scaling of the built-in 8x8 font.
+
+  Use `get_scaled_petme_font(scale)` to access one of the fixed-size bitmap fonts:
+
+  - `get_scaled_petme_font(2)` → `font_petme128_16x16`
+  - `get_scaled_petme_font(3)` → `font_petme128_24x24`
+  - `get_scaled_petme_font(4)` → `font_petme128_32x32`
+
+  Example:
+
+  ```cpp
+  const BitmapFont* font = get_scaled_petme_font(2); // 16x16
+  if (font)
+  {
+      spDisplay->Text("HELLO", 10, 10, COLOUR_WHITE, *font);
+      spDisplay->Show();
+  }
+  ```
+
+  This gives fixed-size larger glyphs from dedicated bitmap headers, while `Text(..., scale)` remains available for lightweight integer scaling.
+
   The data is correlated and displayed in textual and graphical form on the display.  For the TFT it displays the latitude, longitude, altitude, GMT time and an indication of the number of satellites and fix type.  A graphical representation of the satellite positions is displayed, as well as a satellite signal strength bar graph and a clock.
 
   An LED blinks to indicate the presence of a fix.  If a WS2812 LED is available, colors are used to indicate additional information, e.g. blink red for no fix, green for a fix using the GPS module onboard antenna, blue for external antenna; customization may be needed for the specific GPS module and LED.
