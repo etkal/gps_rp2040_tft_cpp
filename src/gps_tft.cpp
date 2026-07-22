@@ -165,16 +165,16 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
         drawText(0, spGPSData->strMode3D + (m_spGPSData->bExternalAntenna ? " *" : ""), COLOUR_WHITE, false, X_PAD);
         drawText(3, spGPSData->strNumSats, COLOUR_WHITE, true, X_PAD);
 
-        if (!spGPSData->strGPSTime.empty())
-        {
-            drawText(5, spGPSData->strGPSTime, COLOUR_WHITE, true, X_PAD);
-        }
         if (!spGPSData->strLatitude.empty())
         {
             drawText(0, spGPSData->strLatitude, COLOUR_WHITE, true, X_PAD);
             drawText(1, spGPSData->strLongitude, COLOUR_WHITE, true, X_PAD);
             drawText(2, spGPSData->strAltitude, COLOUR_WHITE, true, X_PAD);
             drawText(4, spGPSData->strSpeed, COLOUR_WHITE, true, X_PAD);
+        }
+        if (!spGPSData->strGPSTime.empty())
+        {
+            drawText(5, spGPSData->strGPSTime, COLOUR_WHITE, true, X_PAD);
         }
 
 #if defined(VOLTAGE_DISPLAY)
@@ -374,11 +374,10 @@ void GPS_TFT::drawClock(uint x, uint y, uint radius, std::string strTime)
 int GPS_TFT::linePos(int nLine)
 {
     constexpr uint PAD_CHARS_Y = 1;
-    uint lineHeight            = getCharHeight() + 1;
     if (nLine >= 0)
-        return (nLine + PAD_CHARS_Y) * lineHeight;
+        return (nLine + PAD_CHARS_Y) * getLineAdvance();
     else
-        return m_spDisplay->Height() + 1 + ((nLine - PAD_CHARS_Y) * lineHeight);
+        return m_spDisplay->Height() + (nLine * getLineAdvance());
 }
 
 void GPS_TFT::drawText(int nLine, std::string strText, uint16_t color, bool bRightAlign, uint nPadding)

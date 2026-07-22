@@ -70,6 +70,11 @@ private:
         const BitmapFont* pFont = GetFont();
         return pFont ? pFont->height : 8;
     }
+    inline uint getLineAdvance() const
+    {
+        const BitmapFont* pFont = GetFont();
+        return pFont ? pFont->effectiveLineAdvance() : 8;
+    }
 
     ILI_TFT::Shared m_spDisplay;
     GPS::Shared m_spGPS;
