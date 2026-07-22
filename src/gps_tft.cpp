@@ -162,7 +162,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
         }
 
         // Draw fix and #sats text
-        drawText(0, spGPSData->strMode3D + (m_spGPSData->bExternalAntenna ? " *" : ""), COLOUR_WHITE, false, X_PAD);
+        drawText(0, spGPSData->strMode3D + (m_spGPSData->bExternalAntenna ? "*" : ""), COLOUR_WHITE, false, X_PAD);
         drawText(3, spGPSData->strNumSats, COLOUR_WHITE, true, X_PAD);
 
         if (!spGPSData->strLatitude.empty())
