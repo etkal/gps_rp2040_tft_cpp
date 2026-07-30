@@ -77,7 +77,6 @@ ILI_TFT::ILI_TFT(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION 
       m_dispHeight(0),
       m_rotation(rotation),
       m_madctl(DISPLAY_COLOUR_ORDER),
-      m_spFramebuf(nullptr),
       m_nQuadrants(DISPLAY_QUADRANTS),
       m_eQuadrant(FULL_FRAME),
       m_xoff(0),
@@ -140,7 +139,7 @@ void ILI934X::sendData(uint8_t data)
     cs_select();
     data_select();
 
-    writeByte(data & 0xff);
+    writeByte(data);
 
     cs_deselect();
 }
@@ -362,27 +361,26 @@ void ILI_TFT::setRotation(uint16_t screenWidth, uint16_t screenHeight, ROTATION 
 
 void ILI_TFT::createFramebuf()
 {
-    m_spFramebuf = std::make_shared<Framebuf>();
     switch (m_nQuadrants)
     {
     case 1:
-        m_spFramebuf->Initialize(m_dispWidth, m_dispHeight, RGB565, bReverseBytes);
+        Framebuf::Initialize(m_dispWidth, m_dispHeight, RGB565, bReverseBytes);
         quadrantList = {FULL_FRAME};
         break;
     case 2:
         if (m_dispWidth > m_dispHeight)
         {
-            m_spFramebuf->Initialize(m_dispWidth / 2, m_dispHeight, RGB565, bReverseBytes);
+            Framebuf::Initialize(m_dispWidth / 2, m_dispHeight, RGB565, bReverseBytes);
             quadrantList = {LEFT_HALF, RIGHT_HALF};
         }
         else
         {
-            m_spFramebuf->Initialize(m_dispWidth, m_dispHeight / 2, RGB565, bReverseBytes);
+            Framebuf::Initialize(m_dispWidth, m_dispHeight / 2, RGB565, bReverseBytes);
             quadrantList = {UPPER_HALF, LOWER_HALF};
         }
         break;
     case 4:
-        m_spFramebuf->Initialize(m_dispWidth / 2, m_dispHeight / 2, RGB565, bReverseBytes);
+        Framebuf::Initialize(m_dispWidth / 2, m_dispHeight / 2, RGB565, bReverseBytes);
         quadrantList = {UPPER_LEFT, LOWER_LEFT, UPPER_RIGHT, LOWER_RIGHT};
         break;
     default:
@@ -393,78 +391,78 @@ void ILI_TFT::createFramebuf()
 void ILI_TFT::SetPixel(int x, int y, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_spFramebuf->setpixel(x, y, color);
+    return Framebuf::setpixel(x, y, color);
 }
 
 uint16_t ILI_TFT::GetPixel(int x, int y)
 {
     adjustPoint(x, y);
-    return m_spFramebuf->getpixel(x, y);
+    return Framebuf::getpixel(x, y);
 }
 
 void ILI_TFT::FillRect(int x, int y, int w, int h, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_spFramebuf->fillrect(x, y, w, h, color);
+    return Framebuf::fillrect(x, y, w, h, color);
 }
 
 void ILI_TFT::Fill(uint16_t color)
 {
-    return m_spFramebuf->fill(color);
+    return Framebuf::fill(color);
 }
 
 void ILI_TFT::HLine(int x, int y, int w, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_spFramebuf->hline(x, y, w, color);
+    return Framebuf::hline(x, y, w, color);
 }
 
 void ILI_TFT::VLine(int x, int y, int h, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_spFramebuf->vline(x, y, h, color);
+    return Framebuf::vline(x, y, h, color);
 }
 
 void ILI_TFT::Rect(int x, int y, int w, int h, uint16_t color, bool bFill)
 {
     adjustPoint(x, y);
-    return m_spFramebuf->rect(x, y, w, h, color, bFill);
+    return Framebuf::rect(x, y, w, h, color, bFill);
 }
 
 void ILI_TFT::Line(int x1, int y1, int x2, int y2, uint16_t color)
 {
     adjustPoint(x1, y1);
     adjustPoint(x2, y2);
-    return m_spFramebuf->line(x1, y1, x2, y2, color);
+    return Framebuf::line(x1, y1, x2, y2, color);
 }
 
 void ILI_TFT::Ellipse(int cx, int cy, int xradius, int yradius, uint16_t color, bool bFill, uint8_t mask)
 {
     adjustPoint(cx, cy);
-    return m_spFramebuf->ellipse(cx, cy, xradius, yradius, color, bFill, mask);
+    return Framebuf::ellipse(cx, cy, xradius, yradius, color, bFill, mask);
 }
 
 void ILI_TFT::Text(const char* str, int x, int y, uint16_t color)
 {
     adjustPoint(x, y);
-    return m_spFramebuf->text(str, x, y, color);
+    return Framebuf::text(str, x, y, color);
 }
 
 void ILI_TFT::Text(const char* str, int x, int y, uint16_t color, int scale)
 {
     adjustPoint(x, y);
-    return m_spFramebuf->text(str, x, y, color, scale);
+    return Framebuf::text(str, x, y, color, scale);
 }
 
 void ILI_TFT::Text(const char* str, int x, int y, uint16_t color, const BitmapFont& font, int scale)
 {
     adjustPoint(x, y);
-    return m_spFramebuf->text(str, x, y, color, font, scale);
+    return Framebuf::text(str, x, y, color, font, scale);
 }
 
 void ILI_TFT::Show()
 {
-    Show(0, 0, m_spFramebuf->width(), m_spFramebuf->height());
+    Show(0, 0, Framebuf::width(), Framebuf::height());
 }
 
 void ILI_TFT::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
@@ -472,13 +470,13 @@ void ILI_TFT::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     uint16_t disp_x = x + m_xoff;
     uint16_t disp_y = y + m_yoff;
 
-    uint16_t _x = MIN(m_spFramebuf->width() - 1, MAX(0, x));
-    uint16_t _y = MIN(m_spFramebuf->height() - 1, MAX(0, y));
-    uint16_t _w = MIN(m_spFramebuf->width() - x, MAX(1, w));
-    uint16_t _h = MIN(m_spFramebuf->height() - y, MAX(1, h));
+    uint16_t _x = MIN(Framebuf::width() - 1, MAX(0, x));
+    uint16_t _y = MIN(Framebuf::height() - 1, MAX(0, y));
+    uint16_t _w = MIN(Framebuf::width() - x, MAX(1, w));
+    uint16_t _h = MIN(Framebuf::height() - y, MAX(1, h));
 
-    uint8_t* pSrcData8 = reinterpret_cast<uint8_t*>(m_spFramebuf->buffer());
-    uint16_t fWidth    = m_spFramebuf->width(); // framebuf width
+    uint8_t* pSrcData8 = reinterpret_cast<uint8_t*>(Framebuf::buffer());
+    uint16_t fWidth    = Framebuf::width(); // framebuf width
 
     // This is the simplest, gets ~15fps.
     // writeBlock(_x, _y, _x + _w - 1, _y + _h - 1);

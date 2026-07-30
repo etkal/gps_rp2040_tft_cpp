@@ -158,7 +158,7 @@ enum QUADRANT
 
 // Base ILI TFT class
 //
-class ILI_TFT
+class ILI_TFT : public Framebuf
 {
 public:
     typedef std::shared_ptr<ILI_TFT> Shared;
@@ -188,24 +188,6 @@ public:
     void Text(const char* str, int x, int y, uint16_t color);
     void Text(const char* str, int x, int y, uint16_t color, int scale);
     void Text(const char* str, int x, int y, uint16_t color, const BitmapFont& font, int scale = 1);
-
-    // Set the default font for Text() calls
-    void SetFont(const BitmapFont* pFont)
-    {
-        if (m_spFramebuf)
-            m_spFramebuf->SetFont(pFont);
-    }
-
-    const BitmapFont* GetFont() const
-    {
-        return m_spFramebuf ? m_spFramebuf->GetFont() : nullptr;
-    }
-
-    void ClearFont()
-    {
-        if (m_spFramebuf)
-            m_spFramebuf->ClearFont();
-    }
 
     static inline uint16_t Colour565(uint8_t r, uint8_t g, uint8_t b)
     {
@@ -287,7 +269,6 @@ protected:
     uint16_t m_dispHeight;
     ROTATION m_rotation;
     uint8_t m_madctl;
-    Framebuf::Shared m_spFramebuf;
     uint16_t m_nQuadrants;
     std::list<QUADRANT> quadrantList;
     QUADRANT m_eQuadrant;
