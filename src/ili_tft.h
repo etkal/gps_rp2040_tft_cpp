@@ -102,25 +102,29 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _MAX_CHUNK_SIZE 4096
 
 // Windows 16-bit colour pallet converted to 5-6-5
-#define COLOUR_BLACK      0x0000
-#define COLOUR_MAROON     0x8000
-#define COLOUR_GREEN      0x07E0
-#define COLOUR_OLIVE      0x8400
-#define COLOUR_NAVY       0x0010
-#define COLOUR_PURPLE     0x8010
-#define COLOUR_TEAL       0x0410
-#define COLOUR_SILVER     0xC618
-#define COLOUR_GRAY       0x8410
-#define COLOUR_RED        0xF800
-#define COLOUR_LIME       0x07E0
-#define COLOUR_YELLOW     0xFFE0
-#define COLOUR_BLUE       0x001F
-#define COLOUR_FUCHSIA    0xF81F
-#define COLOUR_AQUA       0x07FF
-#define COLOUR_WHITE      0xFFFF
+#define COLOUR_BLACK     0x0000
+#define COLOUR_MAROON    0x8000
+#define COLOUR_GREEN     0x0400
+#define COLOUR_OLIVE     0x8400
+#define COLOUR_NAVY      0x0010
+#define COLOUR_PURPLE    0x8010
+#define COLOUR_TEAL      0x0410
+#define COLOUR_SILVER    0xC618
+#define COLOUR_GRAY      0x8410
+#define COLOUR_RED       0xF800
+#define COLOUR_LIME      0x07E0
+#define COLOUR_YELLOW    0xFFE0
+#define COLOUR_BLUE      0x001F
+#define COLOUR_FUCHSIA   0xF81F
+#define COLOUR_AQUA      0x07FF
+#define COLOUR_WHITE     0xFFFF
 
-#define COLOUR_ORDER_RGB  MADCTL_RGB
-#define COLOUR_ORDER_BGR  MADCTL_BGR
+#define COLOUR_ORDER_RGB MADCTL_RGB
+#define COLOUR_ORDER_BGR MADCTL_BGR
+
+#if !defined(DISPLAY_COLOUR_ORDER)
+#define DISPLAY_COLOUR_ORDER COLOUR_ORDER_BGR
+#endif
 
 #define ILI934X_HW_WIDTH  240
 #define ILI934X_HW_HEIGHT 320
@@ -191,10 +195,12 @@ public:
         if (m_spFramebuf)
             m_spFramebuf->SetFont(pFont);
     }
+
     const BitmapFont* GetFont() const
     {
         return m_spFramebuf ? m_spFramebuf->GetFont() : nullptr;
     }
+
     void ClearFont()
     {
         if (m_spFramebuf)
@@ -206,13 +212,37 @@ public:
         return (((r >> 3) & 0x1f) << 11) | (((g >> 2) & 0x3f) << 5) | ((b >> 3) & 0x1f);
     }
 
-    uint16_t Width()
+    uint16_t Width() const
     {
         return m_dispWidth;
     }
-    uint16_t Height()
+
+    uint16_t Height() const
     {
         return m_dispHeight;
+    }
+
+    bool Landscape() const
+    {
+        return Width() >= Height();
+    }
+    bool Portrait() const
+    {
+        return !Landscape();
+    }
+    uint16_t ShorterSide() const
+    {
+        return (m_dispWidth < m_dispHeight) ? m_dispWidth : m_dispHeight;
+    }
+
+    int get_recommended_font_size() const
+    {
+        auto shorterSide = ShorterSide();
+        if (shorterSide >= 320)
+            return 18;
+        if (shorterSide >= 240)
+            return 14;
+        return 12;
     }
 
 protected:
@@ -224,11 +254,12 @@ protected:
         y -= m_yoff;
     }
 
-    virtual void sendData(uint16_t data) = 0;
+    virtual void sendData(uint8_t data) = 0;
 
     void writeByte(uint8_t data);
     void write(uint8_t cmd, uint8_t* data = NULL, size_t dataLen = 0);
     void sendData(uint8_t* data, size_t dataLen = 0);
+    virtual void sendFramebufferData(uint8_t* data, size_t dataLen = 0);
     void writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data = NULL, size_t dataLen = 0);
     inline void cs_select()
     {
@@ -277,7 +308,8 @@ public:
     void Reset() override;
 
 private:
-    void sendData(uint16_t data) override;
+    void sendData(uint8_t data) override;
+    void sendFramebufferData(uint8_t* data, size_t dataLen = 0) override;
 };
 #endif // DISPLAY_ILI934X
 
@@ -294,6 +326,7 @@ public:
     void Reset() override;
 
 private:
-    void sendData(uint16_t data) override;
+    void sendData(uint8_t data) override;
+    void sendFramebufferData(uint8_t* data, size_t dataLen = 0) override;
 };
 #endif // DISPLAY_ILI948X

@@ -28,6 +28,7 @@ typedef enum ePixelFormat
 #define ELLIPSE_MASK_Q3   (0x04)
 #define ELLIPSE_MASK_Q4   (0x08)
 
+// So far these displays always use big-endian byte order
 constexpr bool bReverseBytes = true;
 
 class Framebuf
