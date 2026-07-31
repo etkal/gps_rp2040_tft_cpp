@@ -54,13 +54,18 @@ static uint32_t getFreeHeap()
 
 #define SAT_ICON_RADIUS 4
 
-constexpr double pi = 3.14159265359;
+namespace
+{
+    constexpr uint64_t timeSyncRetryIntervalSec = 5 * 60;
+    constexpr double pi                         = 3.14159265359;
+} // namespace
 
-GPS_TFT::GPS_TFT(ILI_TFT::Shared spDisplay, GPS::Shared spGPS, LED::Shared spLED, float GMToffset)
+GPS_TFT::GPS_TFT(ILI_TFT::Shared spDisplay, GPS::Shared spGPS, LED::Shared spLED, TimeMgr::Shared spTimeMgr)
     : m_spDisplay(spDisplay),
       m_spGPS(spGPS),
       m_spLED(spLED),
-      m_GMToffset(GMToffset)
+      m_spTimeMgr(spTimeMgr),
+      m_nLastTimeSyncAttemptSec(std::numeric_limits<uint64_t>::max())
 {
 }
 
@@ -79,8 +84,10 @@ void GPS_TFT::Initialize()
         m_spDisplay->Show();
     }
 
-    // Initialize display with Terminus font 10x18
-    m_spDisplay->SetFont(get_recommended_font(18));
+    auto nFontSize = m_spDisplay->get_recommended_font_size();
+
+    // Initialize display
+    m_spDisplay->SetFont(get_recommended_font(nFontSize));
     auto nQuadrant = m_spDisplay->GetQuadrants().front();
     m_spDisplay->SetQuadrant(nQuadrant);
     drawText(0, "Waiting for GPS", COLOUR_WHITE, false, 0);
@@ -97,7 +104,7 @@ void GPS_TFT::Run()
 
 void GPS_TFT::sentenceCB(void* pCtx, std::string strSentence)
 {
-    // printf("sentenceCB received: %s\n", strSentence.c_str());
+    // LogInfo("sentenceCB received: " + strSentence);
 }
 
 void GPS_TFT::gpsDataCB(void* pCtx, GPSData::Shared spGPSData)
@@ -122,6 +129,28 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
         m_spLED->Blink_ms(20);
     }
 
+    // Update the time if necessary
+    if (!m_spGPSData->strGPSTimeRaw.empty() && !m_spGPSData->strGPSDateRaw.empty())
+    {
+        const uint64_t uptimeSec = time_us_64() / 1000000;
+        const bool bNeverRetried = (m_nLastTimeSyncAttemptSec == std::numeric_limits<uint64_t>::max());
+        const bool bRetryDue     = !TimeMgr::IsWallClockValid() || bNeverRetried ||
+                               (uptimeSec - m_nLastTimeSyncAttemptSec >= timeSyncRetryIntervalSec);
+        if (bRetryDue)
+        {
+            m_nLastTimeSyncAttemptSec = uptimeSec;
+            LogInfo("Attempting GPS time sync");
+            if (m_spTimeMgr->SetTimeFromGps(m_spGPSData->strGPSTimeRaw, m_spGPSData->strGPSDateRaw))
+            {
+                LogInfo("GPS time synchronized");
+            }
+            else
+            {
+                LogInfo("GPS time sync retry failed");
+            }
+        }
+    }
+
     uint16_t nWidth  = m_spDisplay->Width();
     uint16_t nHeight = m_spDisplay->Height();
 
@@ -129,7 +158,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
     constexpr uint PAD_CHARS_X = 1;
     constexpr uint PAD_CHARS_Y = 1;
     uint X_PAD                 = PAD_CHARS_X * getCharWidth();
-    uint Y_PAD                 = PAD_CHARS_Y * (getCharHeight() + 1);
+    uint Y_PAD                 = PAD_CHARS_Y * getCharHeight();
 
 #if defined(VOLTAGE_DISPLAY)
     float vsys    = 0.0;
@@ -152,7 +181,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
 
         // Draw the satellite map on the left half of the screen
         // Draw satellite grid, 3 rings
-        if (m_spDisplay->Width() > m_spDisplay->Height())
+        if (m_spDisplay->Landscape())
         {
             drawSatGrid(nWidth / 4 + X_PAD, nHeight / 2, nWidth / 4 - X_PAD / 2, 3);
         }
@@ -188,19 +217,22 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
         if (!spGPSData->strGPSTime.empty())
         {
             uint lineHeight = getCharHeight() + 1;
-            uint radius     = m_spDisplay->Height() / 8;
-            uint xPos       = m_spDisplay->Width() > m_spDisplay->Height() ? nWidth / 2 : nWidth / 3;
+            uint radius     = m_spDisplay->ShorterSide() / 8;
+            uint xPos       = m_spDisplay->Landscape() ? nWidth / 2 : X_PAD + getCharWidth() * 3;
             drawClock(xPos, lineHeight * PAD_CHARS_Y, radius, spGPSData->strGPSTime);
         }
 
         // Draw bar graph
         if (m_spGPSData->mSatList.size() > 0)
         {
-            uint xPos   = nWidth / 2;
-            uint yPos   = m_spDisplay->Width() > m_spDisplay->Height() ? nHeight / 2 : nHeight * 3 / 4;
-            uint width  = nWidth / 2 - X_PAD;
-            uint height = m_spDisplay->Width() > m_spDisplay->Height() ? nHeight / 2 - Y_PAD : nHeight / 4 - Y_PAD;
-            drawBarGraph(xPos, yPos, width, height);
+            if (m_spDisplay->Landscape())
+            {
+                drawBarGraph(nWidth / 2, nHeight * 2 / 3, nWidth / 2 - X_PAD, nHeight / 3 - Y_PAD);
+            }
+            else
+            {
+                drawBarGraph(nWidth / 4, nHeight * 3 / 4, 3 * nWidth / 4 - X_PAD, nHeight / 4 - Y_PAD);
+            }
         }
 
         // blit the framebuf to the display quadrant
@@ -270,11 +302,10 @@ void GPS_TFT::drawCircleSat(uint gridCenterX,
 
 void GPS_TFT::drawBarGraph(uint x, uint y, uint width, uint height)
 {
-    uint nMaxSats = 16;
-
     const BitmapFont* pFont = get_recommended_font(12); // 6x12, narrowest font for bar graph
-    bool bNarrow = (nMaxSats * (2 * (pFont->width + 4)) > width);
 
+    uint nMaxSats     = 16;
+    bool bNarrow      = (nMaxSats * (2 * (pFont->width + 4)) > width);
     uint charWidth    = bNarrow ? pFont->width : getCharWidth();
     uint charHeight   = bNarrow ? pFont->height : getCharHeight();
     uint barDelta     = bNarrow ? std::max(std::min(charWidth * 2 + 4, width / nMaxSats), charWidth * 2)
@@ -316,6 +347,7 @@ void GPS_TFT::drawBarGraph(uint x, uint y, uint width, uint height)
             {
                 if (barHeight > 0)
                 {
+                    // draw inner filled rectangle to indicate used satellite
                     m_spDisplay->Rect(barPosX + 2, baseLineY - barHeight + 2, barWidth - 2, barHeight - 2, COLOUR_BLUE, true);
                 }
                 break;
@@ -330,12 +362,13 @@ void GPS_TFT::drawClock(uint x, uint y, uint radius, std::string strTime)
     uint xCenter             = x + radius;
     uint yCenter             = y + radius;
     uint nHour               = atoi(strTime.substr(0, 2).c_str());
-    float hour               = (float)(nHour % 12) + m_GMToffset;
+    const float gmtOffset    = m_spTimeMgr ? m_spTimeMgr->TimeZoneOffsetHours() : 0.0f;
+    float hour               = (float)(nHour % 12) + gmtOffset;
     hour                     = (hour < 0) ? hour + 12 : hour;
     hour                     = (hour >= 12) ? hour - 12 : hour;
     float minute             = (float)atoi(strTime.substr(3, 2).c_str());
     float second             = (float)atoi(strTime.substr(6, 2).c_str());
-    uint16_t ringColor       = COLOUR_GREEN;
+    uint16_t ringColor       = COLOUR_LIME;
     uint16_t faceColor       = COLOUR_BLACK;
     uint16_t handColor       = COLOUR_WHITE;
     uint16_t secondHandColor = COLOUR_RED;

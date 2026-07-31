@@ -2,20 +2,33 @@ cmake_minimum_required(VERSION 3.24)
 
 # Set the board type for pin and LED decisions
 #set(PICO_BOARD pico)
-set(PICO_BOARD pico_w)
+#set(PICO_BOARD pico_w)
 #set(PICO_BOARD waveshare_rp2040_zero)
-#set(PICO_BOARD seeed_xiao_rp2040)
+set(PICO_BOARD seeed_xiao_rp2040)
 
 # TFT display type - enable one of the following
-#add_compile_definitions(DISPLAY_ILI934X)
-add_compile_definitions(DISPLAY_ILI948X)
+#
+add_compile_definitions(DISPLAY_ILI934X)
+#add_compile_definitions(DISPLAY_ILI948X)
+
+# Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments.
+# Pico-ResTouch-LCD uses 18-bit pixels, but the default is 16-bit.
+#
+#add_compile_definitions(DISPLAY_PICO_RESTOUCH)
+#add_compile_definitions(DISPLAY_ILI948X_USE_18BIT_PIXELS)
+
 # Number of quadrants to use, needed for memory usage
 add_compile_definitions(DISPLAY_QUADRANTS=4)
-# Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments
-add_compile_definitions(DISPLAY_PICO_RESTOUCH)
 
-# GMT Offset for clock display
-add_compile_definitions(GPSD_GMT_OFFSET=-4.0)
+# Set the display rotation, one of R0DEG, R90DEG, R180DEG, R270DEG
+add_compile_definitions(DISPLAY_ROTATION=R270DEG)
+
+# Time zone for clock display (examples: UTC, America/New_York, Europe/London)
+add_compile_definitions(TIME_ZONE=\"America/New_York\")
+# DST override for clock display: AUTOMATIC, NO, or YES
+add_compile_definitions(USE_DST=AUTOMATIC)
+# Legacy fallback for simple numeric offsets
+add_compile_definitions(GMT_OFFSET=-4.0)
 
 # Enable to display VSYS voltage
 if ((PICO_BOARD STREQUAL pico) OR (PICO_BOARD STREQUAL pico_w))

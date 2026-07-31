@@ -12,8 +12,9 @@
 
 #include <memory>
 
-#include "ili_tft.h"
+#include "timemgr.h"
 #include "gps.h"
+#include "ili_tft.h"
 #include "led.h"
 #include "font.h"
 
@@ -30,7 +31,7 @@ class GPS_TFT
 public:
     typedef std::shared_ptr<GPS_TFT> Shared;
 
-    GPS_TFT(ILI_TFT::Shared spDisplay, GPS::Shared spGPS, LED::Shared spLED, float GMToffset = 0.0);
+    GPS_TFT(ILI_TFT::Shared spDisplay, GPS::Shared spGPS, LED::Shared spLED, TimeMgr::Shared spTimeMgr);
     ~GPS_TFT();
 
     void Initialize();
@@ -79,7 +80,7 @@ private:
     ILI_TFT::Shared m_spDisplay;
     GPS::Shared m_spGPS;
     LED::Shared m_spLED;
-    float m_GMToffset;
-
     GPSData::Shared m_spGPSData;
+    TimeMgr::Shared m_spTimeMgr;
+    uint64_t m_nLastTimeSyncAttemptSec;
 };

@@ -55,7 +55,9 @@ public:
     std::string strLongitude;
     std::string strAltitude;
     std::string strNumSats;
-    std::string strGPSTime;
+    std::string strGPSTimeRaw; // Raw GPS time in HHMMSS format
+    std::string strGPSDateRaw; // Raw GPS date in DDMMYY format
+    std::string strGPSTime;    // Formatted GPS time string in HH:MM:SSZ format
     std::string strMode3D;
     std::string strSpeed;
     SatList mSatList;
@@ -65,7 +67,7 @@ public:
 typedef void (*sentenceCallback)(void* pCtx, std::string strSentence);
 typedef void (*gpsDataCallback)(void* pCtx, GPSData::Shared spGPSData);
 
-auto constexpr GPS_BUFSIZE            = 4096; // Circular buffer size
+auto constexpr GPS_BUFSIZE = 4096; // Circular buffer size
 
 class GPS
 {

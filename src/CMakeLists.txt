@@ -10,4 +10,5 @@ target_sources(gps_tft PUBLIC
     ili_tft.cpp
     led.cpp
     main.cpp
+    timemgr.cpp
 )

@@ -25,8 +25,10 @@
 #include <queue>
 #include <iostream>
 #include <iomanip>
+#include <cmath>
 
 #include "gps.h"
+#include "timemgr.h"
 #include <pico/sync.h>
 
 typedef enum eSentenceType
@@ -122,7 +124,7 @@ void GPS::Run()
 
             if (!bSentAntennaCommands && bValidSentenceRead)
             {
-                printf("Sending antenna commands\n");
+                LogInfo("Sending antenna commands\n");
                 // Write commands to enable reporting external vs internal antenna.  We wait
                 // until some data is received to ensure the GPS has finished initializing.
                 std::string strPGCMD("$PGCMD,33,1*6C\r\n"); // Enable antenna output for PA6H
@@ -151,7 +153,7 @@ bool GPS::processSentence(std::string strSentence)
     {
         return false;
     }
-    printf("%s\n", strSentence.c_str());
+    LogInfo("Received: " + strSentence);
 
     if (NULL != m_pSentenceCallBack)
     {
@@ -178,7 +180,7 @@ bool GPS::processSentence(std::string strSentence)
     {
         if (!m_spGPSData->mSatList.empty())
         {
-            printf("Clearing vectors\n");
+            LogInfo("Clearing vectors\n");
             m_spGPSData->mSatList.clear();
             m_spGPSData->vUsedList.clear();
         }
@@ -186,7 +188,7 @@ bool GPS::processSentence(std::string strSentence)
 
     if (vElems.size() == 0)
     {
-        printf("No elements found\n");
+        LogInfo("No elements found\n");
         return false;
     }
 
@@ -269,11 +271,12 @@ bool GPS::processSentence(std::string strSentence)
             {
                 if (!vElems[i].empty() && !vElems[i + 1].empty() && !vElems[i + 2].empty())
                 {
-                    uint num  = atoi(vElems[i].c_str());
-                    uint el   = atoi(vElems[i + 1].c_str());
-                    uint az   = atoi(vElems[i + 2].c_str());
-                    uint rssi = vElems[i + 3].empty() ? 0 : atoi(vElems[i + 3].c_str());
-                    m_mSatListIncoming.emplace(std::make_pair(num, SatInfo(num, el, az, rssi)));
+                    uint num        = atoi(vElems[i].c_str());
+                    uint el         = atoi(vElems[i + 1].c_str());
+                    uint az         = atoi(vElems[i + 2].c_str());
+                    uint rssi       = vElems[i + 3].empty() ? 0 : atoi(vElems[i + 3].c_str());
+                    uint rssiScaled = (uint)(std::sqrt((double)rssi / 99.0) * 99.0);
+                    m_mSatListIncoming.emplace(std::make_pair(num, SatInfo(num, el, az, rssiScaled)));
                 }
             }
             if (vElems[2] == m_strNumGSV) // Last one received
@@ -290,13 +293,25 @@ bool GPS::processSentence(std::string strSentence)
     {
         if (!vElems[1].empty())
         {
-            std::string& t          = vElems[1];
-            m_spGPSData->strGPSTime = t.substr(0, 2) + ":" + t.substr(2, 2) + ":" + t.substr(4, 2) + "Z";
+            std::string& t             = vElems[1];
+            m_spGPSData->strGPSTime    = t.substr(0, 2) + ":" + t.substr(2, 2) + ":" + t.substr(4, 2) + "Z";
+            m_spGPSData->strGPSTimeRaw = t;
         }
         else
         {
-            m_spGPSData->strGPSTime = "";
+            m_spGPSData->strGPSTime    = "";
+            m_spGPSData->strGPSTimeRaw.clear();
         }
+
+        if (!vElems[9].empty())
+        {
+            m_spGPSData->strGPSDateRaw = vElems[9];
+        }
+        else
+        {
+            m_spGPSData->strGPSDateRaw.clear();
+        }
+
         if (vElems[2] == "A")
         {
             if (!vElems[3].empty() && !vElems[4].empty() && !vElems[5].empty() && !vElems[6].empty())
