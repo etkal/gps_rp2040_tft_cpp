@@ -7,14 +7,14 @@ cmake_minimum_required(VERSION 3.24)
 set(PICO_BOARD seeed_xiao_rp2040)
 
 # TFT display type - enable one of the following
+#
 add_compile_definitions(DISPLAY_ILI934X)
 #add_compile_definitions(DISPLAY_ILI948X)
 
-# Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments
-# since it overrides the installed pico or pico-w board definitions
+# Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments.
+# Pico-ResTouch-LCD uses 18-bit pixels, but the default is 16-bit.
+#
 #add_compile_definitions(DISPLAY_PICO_RESTOUCH)
-
-# Optional ILI948X pixel format override (Pico-ResTouch-LCD uses 18-bit pixels, but the default is 16-bit)
 #add_compile_definitions(DISPLAY_ILI948X_USE_18BIT_PIXELS)
 
 # Number of quadrants to use, needed for memory usage
