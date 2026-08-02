@@ -12,12 +12,15 @@ set(PICO_BOARD pico2_w)
 #
 add_compile_definitions(DISPLAY_ILI934X)
 #add_compile_definitions(DISPLAY_ILI948X)
+#add_compile_definitions(DISPLAY_ST7796)
 
 # Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments.
-# Pico-ResTouch-LCD uses 18-bit pixels, but the default is 16-bit.
 #
 #add_compile_definitions(DISPLAY_PICO_RESTOUCH)
-#add_compile_definitions(DISPLAY_ILI948X_USE_18BIT_PIXELS)
+
+# ILI948X and ST7796 *can* use 18-bit pixels, the default is 16-bit.
+#
+#add_compile_definitions(DISPLAY_18BIT_PIXELS)
 
 # Number of quadrants to use, needed for memory usage
 add_compile_definitions(DISPLAY_QUADRANTS=4)
@@ -32,11 +35,11 @@ add_compile_definitions(USE_DST=AUTOMATIC)
 # Legacy fallback for simple numeric offsets
 add_compile_definitions(GMT_OFFSET=-4.0)
 
-# Enable to display VSYS voltage
+# Set pico platform definitions for conditional compilation
 if(PICO_BOARD STREQUAL pico_w OR PICO_BOARD STREQUAL pico2_w)
     add_compile_definitions(PLATFORM_PICO_W)
 endif()
-if(PICO_BOARD STREQUAL pico OR PICO_BOARD STREQUAL pico2 OR PICO_BOARD STREQUAL pico_w OR PICO_BOARD STREQUAL pico2_w) 
+if(PICO_BOARD STREQUAL pico OR PICO_BOARD STREQUAL pico2 OR PICO_BOARD STREQUAL pico_w OR PICO_BOARD STREQUAL pico2_w)
     add_compile_definitions(PLATFORM_PICO)
 endif()
 

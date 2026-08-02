@@ -176,60 +176,21 @@ void ILI948X::Initialize()
 
     // Set the registers
     write(_DSPINVON);
-    write(_PWCTRL3);
-    sendData(0x33);
-    write(_VMCTRL1);
-    sendData(0x00);
-    sendData(0x1e);
-    sendData(0x80);
-    write(_FRMCTR1);
-    sendData(0xb0);
-    write(_PGAMCTRL);
-    sendData(0x00);
-    sendData(0x13);
-    sendData(0x18);
-    sendData(0x04);
-    sendData(0x0F);
-    sendData(0x06);
-    sendData(0x3a);
-    sendData(0x56);
-    sendData(0x4d);
-    sendData(0x03);
-    sendData(0x0a);
-    sendData(0x06);
-    sendData(0x30);
-    sendData(0x3e);
-    sendData(0x0f);
-    write(_NGAMCTRL);
-    sendData(0x00);
-    sendData(0x13);
-    sendData(0x18);
-    sendData(0x01);
-    sendData(0x11);
-    sendData(0x06);
-    sendData(0x38);
-    sendData(0x34);
-    sendData(0x4d);
-    sendData(0x06);
-    sendData(0x0d);
-    sendData(0x0b);
-    sendData(0x31);
-    sendData(0x37);
-    sendData(0x0f);
-    write(_PIXSET);
-#if defined(DISPLAY_ILI948X_USE_18BIT_PIXELS)
-    sendData(0x66);
+    write(_PWCTRL3, (uint8_t*)"\x33", 1);
+    write(_VMCTRL1, (uint8_t*)"\x00\x1e\x80", 3);
+    write(_FRMCTR1, (uint8_t*)"\xb0", 1);
+    write(_PGAMCTRL, (uint8_t*)"\x00\x13\x18\x04\x0f\x06\x3a\x56\x4d\x03\x0a\x06\x30\x3e\x0f", 15);
+    write(_NGAMCTRL, (uint8_t*)"\x00\x13\x18\x01\x11\x06\x38\x34\x4d\x06\x0d\x0b\x31\x37\x0f", 15);
+#if defined(DISPLAY_18BIT_PIXELS)
+    write(_PIXSET, (uint8_t*)"\x66", 1);
 #else
-    sendData(0x55);
+    write(_PIXSET, (uint8_t*)"\x55", 1);
 #endif
     write(_SLPOUT);
     sleep_ms(50);
     write(_DISPON);
-    write(_DISCTRL);
-    sendData(0x00);
-    sendData(0x02);
-    write(_MADCTL);
-    sendData(m_madctl);
+    write(_DISCTRL, (uint8_t*)"\x00\x02", 2);
+    write(_MADCTL, &m_madctl, 1);
 }
 
 // ILI948X command parameters are single-byte values
@@ -248,6 +209,73 @@ void ILI948X::sendFramebufferData(uint8_t* data, size_t dataLen)
     ILI_TFT::sendData(data, dataLen);
 }
 #endif // DISPLAY_ILI948X
+
+#if defined(DISPLAY_ST7796)
+ST7796::ST7796(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation)
+    : ILI_TFT(spi, cs, dc, rst, rotation)
+{
+}
+
+void ST7796::Reset()
+{
+    gpio_put(m_rst, 1);
+    sleep_ms(50);
+    gpio_put(m_rst, 0);
+    sleep_ms(50);
+    gpio_put(m_rst, 1);
+    sleep_ms(50);
+}
+
+void ST7796::Initialize()
+{
+    setRotation(ST7796_HW_WIDTH, ST7796_HW_HEIGHT, m_rotation); // Sets width, height and MADCTL value
+    createFramebuf();
+
+    // Reset the display
+    Reset();
+
+    // Set the registers
+    write(0x01); // Software reset
+    sleep_ms(5);
+    write(_SLPOUT); // Sleep exit
+    sleep_ms(120);
+    write(_CSCON, (uint8_t*)"\xC3", 1);
+    write(_CSCON, (uint8_t*)"\x96", 1);
+    write(_MADCTL, &m_madctl, 1);
+#if defined(DISPLAY_18BIT_PIXELS)
+    write(_PIXSET, (uint8_t*)"\x66", 1); // 18-bit pixel format
+#else
+    write(_PIXSET, (uint8_t*)"\x55", 1); // 16-bit pixel format
+#endif
+    write(_DISCTRL, (uint8_t*)"\x00\x02", 2);
+    write(_DTCTRLA, (uint8_t*)"\x40\x8A\x00\x00\x29\x19\xA5\x33", 8);
+    write(_PWCTRL3);
+    write(_VMCTRL1, (uint8_t*)"\x24", 1);
+    write(_PGAMCTRL, (uint8_t*)"\xF0\x09\x13\x12\x12\x2B\x3C\x44\x4B\x1B\x18\x17\x1D\x21", 14);
+    write(_NGAMCTRL, (uint8_t*)"\xF0\x09\x13\x0C\x0D\x27\x3B\x44\x4D\x0B\x17\x17\x1D\x21", 14);
+    write(_CSCON, (uint8_t*)"\x3C", 1);
+    write(_CSCON, (uint8_t*)"\x69", 1);
+    write(_SLPOUT);
+    sleep_ms(50);
+    write(_DISPON);
+}
+
+// ILI948X command parameters are single-byte values
+void ST7796::sendData(uint8_t data)
+{
+    cs_select();
+    data_select();
+
+    writeByte(data);
+
+    cs_deselect();
+}
+
+void ST7796::sendFramebufferData(uint8_t* data, size_t dataLen)
+{
+    ILI_TFT::sendData(data, dataLen);
+}
+#endif // DISPLAY_ST7796
 
 void ILI_TFT::Clear(uint16_t colour)
 {
@@ -343,7 +371,7 @@ void ILI_TFT::setRotation(uint16_t screenWidth, uint16_t screenHeight, ROTATION 
 void ILI_TFT::createFramebuf()
 {
     ePixelFormat eFormat = RGB565;
-#if defined(DISPLAY_ILI948X_USE_18BIT_PIXELS)
+#if defined(DISPLAY_18BIT_PIXELS)
     eFormat = RGB666;
 #endif
     switch (m_nQuadrants)

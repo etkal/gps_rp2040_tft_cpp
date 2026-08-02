@@ -189,6 +189,8 @@ int main()
     ILI_TFT::Shared spDisplay = std::make_shared<ILI948X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, DISPLAY_ROTATION);
 #elif defined(DISPLAY_ILI934X)
     ILI_TFT::Shared spDisplay = std::make_shared<ILI934X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, DISPLAY_ROTATION);
+#elif defined(DISPLAY_ST7796)
+    ILI_TFT::Shared spDisplay = std::make_shared<ST7796>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, DISPLAY_ROTATION);
 #else
 #error Unsupported display specified
 #endif
@@ -200,7 +202,7 @@ int main()
 
     spDevice->Initialize();
 
-#if 0
+#if !defined(NDEBUG)
     // Palette demo splash: show all 16 named RGB565 colors with labels
     {
         struct NamedColour

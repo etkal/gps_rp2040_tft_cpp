@@ -174,10 +174,8 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
     }
 #endif
 
-#if !defined(NDEBUG)
     auto startTime           = time_us_64();
     static uint64_t showTime = 0;
-#endif
 
     for (auto nQuadrant : m_spDisplay->GetQuadrants())
     {
@@ -248,12 +246,11 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
 // blit the framebuf to the display quadrant
         m_spDisplay->Show();
     }
-#if !defined(NDEBUG)
     showTime = time_us_64() - startTime;
-#endif
 
     m_spGPSData.reset();
 
+    LogInfo("Frame show: " + std::to_string(showTime / 1000) + "ms");
 #if !defined(NDEBUG)
     std::cout << "Total Heap: " << getTotalHeap() << "  Free Heap: " << getFreeHeap() << std::endl;
 #endif
