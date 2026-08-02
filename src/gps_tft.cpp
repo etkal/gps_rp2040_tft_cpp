@@ -146,7 +146,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
             }
             else
             {
-                LogInfo("GPS time sync retry failed");
+                LogInfo("GPS time sync failed");
             }
         }
     }
@@ -160,7 +160,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
     uint X_PAD                 = PAD_CHARS_X * getCharWidth();
     uint Y_PAD                 = PAD_CHARS_Y * getCharHeight();
 
-#if defined(VOLTAGE_DISPLAY)
+#if defined(PLATFORM_PICO)
     float vsys    = 0.0;
     bool bBattery = false;
     std::string strVsys;
@@ -173,6 +173,9 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
         strVsys = oss.str();
     }
 #endif
+
+    auto startTime           = time_us_64();
+    static uint64_t showTime = 0;
 
     for (auto nQuadrant : m_spDisplay->GetQuadrants())
     {
@@ -206,7 +209,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
             drawText(5, spGPSData->strGPSTime, COLOUR_WHITE, true, X_PAD);
         }
 
-#if defined(VOLTAGE_DISPLAY)
+#if defined(PLATFORM_PICO)
         if (!strVsys.empty())
         {
             drawText(6, strVsys, COLOUR_WHITE, true, X_PAD);
@@ -235,12 +238,19 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
             }
         }
 
-        // blit the framebuf to the display quadrant
+#if !defined(NDEBUG)
+        drawText(7, "Show: " + std::to_string(showTime / 1000) + "ms", COLOUR_WHITE, true, X_PAD);
+        drawText(8, "Free: " + std::to_string(getFreeHeap() / 1000) + "kB", COLOUR_WHITE, true, X_PAD);
+#endif
+
+// blit the framebuf to the display quadrant
         m_spDisplay->Show();
     }
+    showTime = time_us_64() - startTime;
 
     m_spGPSData.reset();
 
+    LogInfo("Frame show: " + std::to_string(showTime / 1000) + "ms");
 #if !defined(NDEBUG)
     std::cout << "Total Heap: " << getTotalHeap() << "  Free Heap: " << getFreeHeap() << std::endl;
 #endif

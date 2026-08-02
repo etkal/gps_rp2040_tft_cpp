@@ -89,6 +89,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _PGAMCTRL       0xe0 // Positive Gamma Control
 #define _NGAMCTRL       0xe1 // Negative Gamma Control
 #define _DSPINVON       0x21 // Display Inversion On
+#define _DSPINVOFF      0x20 // Display Inversion Off
+#define _CSCON          0xF0 // Command Set Control for ST7796
 
 #define MADCTL_MY       0x80 ///< Bottom to top
 #define MADCTL_MX       0x40 ///< Right to left
@@ -130,6 +132,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define ILI934X_HW_HEIGHT 320
 #define ILI948X_HW_WIDTH  320
 #define ILI948X_HW_HEIGHT 480
+#define ST7796_HW_WIDTH   320
+#define ST7796_HW_HEIGHT  480
 
 enum ROTATION
 {
@@ -243,6 +247,7 @@ protected:
     void sendData(uint8_t* data, size_t dataLen = 0);
     virtual void sendFramebufferData(uint8_t* data, size_t dataLen = 0);
     void writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data = NULL, size_t dataLen = 0);
+
     inline void cs_select()
     {
         gpio_put(m_cs, 0); // Active low
@@ -311,3 +316,21 @@ private:
     void sendFramebufferData(uint8_t* data, size_t dataLen = 0) override;
 };
 #endif // DISPLAY_ILI948X
+
+// ST7796-specific TFT class
+//
+#if defined(DISPLAY_ST7796)
+class ST7796 : public ILI_TFT
+{
+public:
+    ST7796(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION rotation = R0DEG);
+    virtual ~ST7796() = default;
+
+    void Initialize() override;
+    void Reset() override;
+
+private:
+    void sendData(uint8_t data) override;
+    void sendFramebufferData(uint8_t* data, size_t dataLen = 0) override;
+};
+#endif // DISPLAY_ST7796

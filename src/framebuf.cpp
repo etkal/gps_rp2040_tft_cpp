@@ -41,6 +41,7 @@ using std::size_t;
 
 Framebuf::Framebuf()
     : m_pBuf(nullptr),
+      m_nPixelSize(0),
       m_nWidth(0),
       m_nHeight(0),
       m_nStride(0),
@@ -66,6 +67,9 @@ Framebuf::~Framebuf()
     case RGB565:
         delete[] (uint16_t*)m_pBuf;
         break;
+    case RGB666:
+        delete[] (pixel666*)m_pBuf;
+        break;
     default:
         break;
     }
@@ -88,9 +92,15 @@ void Framebuf::Initialize(uint16_t nWidth, uint16_t nHeight, ePixelFormat eForma
     case MHMSB:
         m_pBuf    = new uint8_t[m_nWidth * m_nHeight / 8];
         m_nStride = (m_nStride + 7) & ~7;
+        m_nPixelSize = 1;
         break;
     case RGB565:
         m_pBuf = new uint16_t[m_nWidth * m_nHeight];
+        m_nPixelSize = 2;
+        break;
+    case RGB666:
+        m_pBuf = new pixel666[m_nWidth * m_nHeight];
+        m_nPixelSize = 3;
         break;
     default:
         m_pBuf = nullptr;
@@ -119,6 +129,11 @@ void Framebuf::setpixel(int x, int y, uint16_t color)
         ((uint16_t*)m_pBuf)[x + y * m_nStride] = fixcolor(color);
     }
     break;
+    case RGB666:
+    {
+        ((pixel666*)m_pBuf)[x + y * m_nStride] = color;
+    }
+    break;
     default:
         return;
         break;
@@ -138,6 +153,9 @@ uint16_t Framebuf::getpixel(int x, int y)
         break;
     case RGB565:
         return ((uint16_t*)m_pBuf)[x + y * m_nStride];
+        break;
+    case RGB666:
+        return ((pixel666*)m_pBuf)[x + y * m_nStride];
         break;
     default:
         return 0;
@@ -174,6 +192,19 @@ void Framebuf::fillrect(int x, int y, int w, int h, uint16_t color)
             for (unsigned int ww = w; ww; --ww)
             {
                 *b++ = fixcolor(color);
+            }
+            b += m_nStride - w;
+        }
+    }
+    break;
+    case RGB666:
+    {
+        pixel666* b = &((pixel666*)m_pBuf)[x + y * m_nStride];
+        while (h--)
+        {
+            for (unsigned int ww = w; ww; --ww)
+            {
+                *b++ = color;
             }
             b += m_nStride - w;
         }
