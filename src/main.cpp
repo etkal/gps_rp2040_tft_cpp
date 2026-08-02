@@ -24,7 +24,7 @@
 #include <pico/stdlib.h>
 #include "hardware/adc.h"
 
-#if defined(RASPBERRYPI_PICO_W)
+#if defined(PLATFORM_PICO_W)
 #include "pico/cyw43_arch.h"
 #endif
 
@@ -56,7 +56,7 @@
 #define PIN_MISO   12
 #define PIN_BL     13
 #define PIN_RST    15
-#elif defined(RASPBERRYPI_PICO) || defined(RASPBERRYPI_PICO_W)
+#elif defined(PLATFORM_PICO) // Pico, Pico W, Pico 2, Pico 2 W
 #define SPI_DEVICE spi_default              // Default is SPI0 for Pico
 #define PIN_MISO   PICO_DEFAULT_SPI_RX_PIN  // White  16
 #define PIN_CS     PICO_DEFAULT_SPI_CSN_PIN // Org    17
@@ -126,7 +126,7 @@ int main()
 #endif
 
     // Set up the TFT display
-    spi_init(SPI_DEVICE, 80000000);
+    spi_init(SPI_DEVICE, 40000000);
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
@@ -152,7 +152,7 @@ int main()
     LED_pico ledRed(17);   // red
 #endif
 
-#if defined(RASPBERRYPI_PICO_W)
+#if defined(PLATFORM_PICO_W)
     cyw43_arch_init();
 #endif
 
@@ -172,7 +172,7 @@ int main()
 #elif defined(PICO_DEFAULT_LED_PIN)
     spLED = std::make_shared<LED_pico>(PICO_DEFAULT_LED_PIN);
     spLED->SetIgnore({led_red, led_magenta});
-#elif defined(RASPBERRYPI_PICO_W)
+#elif defined(PLATFORM_PICO_W)
     spLED = std::make_shared<LED_pico_w>(CYW43_WL_GPIO_LED_PIN);
     spLED->SetIgnore({led_red, led_magenta});
 #endif
@@ -263,7 +263,7 @@ int main()
                 spDisplay->FillRect(x, y, w, h, colours[i].value);
                 uint16_t textColour = text_colour_for_bg(colours[i].value);
                 spDisplay->Text(colours[i].name, x + 3, y + 3, textColour);
-                spDisplay->Text(colours[i].hex, x + 3, y + 14, textColour);
+                spDisplay->Text(colours[i].hex, x + 3, y + 16, textColour);
             }
 
             spDisplay->Show();
@@ -314,7 +314,7 @@ int main()
     // Run the show
     spDevice->Run();
 
-#if defined(RASPBERRYPI_PICO_W)
+#if defined(PLATFORM_PICO_W)
     cyw43_arch_deinit();
 #endif
 

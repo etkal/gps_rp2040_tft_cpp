@@ -16,6 +16,7 @@
 #include <sys/time.h>
 
 #include "pico/stdlib.h"
+#include "pico/aon_timer.h"
 
 #ifndef TIMEMGR_ENABLE_NTP
 #define TIMEMGR_ENABLE_NTP 0
@@ -773,7 +774,14 @@ bool TimeMgr::SetTimeFromNtp(uint32_t timeoutMs)
     timeval tv{};
     tv.tv_sec  = unixSeconds;
     tv.tv_usec = 0;
-    return settimeofday(&tv, nullptr) == 0;
+    if (settimeofday(&tv, nullptr) != 0)
+    {
+        LogInfo("Failed to set time from NTP: " + std::string(std::strerror(errno)));
+        return false;
+    }
+    aon_timer_start_with_timeofday();
+    RefreshTimeZoneOffset(gpsUtc);
+    return true;
 #endif
 }
 
@@ -801,7 +809,7 @@ bool TimeMgr::SetTimeFromGps(const std::string& gpsTime, const std::string& gpsD
         LogInfo("Failed to set time from GPS: " + std::string(std::strerror(errno)));
         return false;
     }
-
+    aon_timer_start_with_timeofday();
     RefreshTimeZoneOffset(gpsUtc);
     return true;
 }

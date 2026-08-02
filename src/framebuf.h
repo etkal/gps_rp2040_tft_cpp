@@ -17,7 +17,42 @@ typedef enum ePixelFormat
     RGB565, // ili9341
     MHLSB,
     MHMSB,
+    RGB666, // 18-bit pixel format (3 bytes per pixel)
 } ePixelFormat;
+
+struct pixel666
+{
+    inline pixel666& operator=(const pixel666& other)
+    {
+        b1 = other.b1;
+        b2 = other.b2;
+        b3 = other.b3;
+        return *this;
+    }
+
+    inline pixel666& operator=(const uint16_t& pixel565)
+    {
+        uint8_t r      = (pixel565 >> 11) & 0x1f;
+        uint8_t g      = (pixel565 >> 5) & 0x3f;
+        uint8_t b      = pixel565 & 0x1f;
+        b1 = r << 3;
+        b2 = g << 2;
+        b3 = b << 3;
+        return *this;
+    }
+
+    inline operator uint16_t() const
+    {
+        uint8_t r = b1 >> 3;
+        uint8_t g = b2 >> 2;
+        uint8_t b = b3 >> 3;
+        return (r << 11) | (g << 5) | b;
+    }
+
+    uint8_t b1;
+    uint8_t b2;
+    uint8_t b3;
+};
 
 // Q2 Q1
 // Q3 Q4
@@ -73,6 +108,10 @@ public:
     {
         return m_nHeight;
     }
+    uint16_t pixelSize()
+    {
+        return m_nPixelSize;
+    }
 
 private:
     bool check(int& x, int& y);
@@ -89,6 +128,7 @@ private:
     }
 
     void* m_pBuf;
+    uint16_t m_nPixelSize;
     uint16_t m_nWidth;
     uint16_t m_nHeight;
     uint16_t m_nStride;

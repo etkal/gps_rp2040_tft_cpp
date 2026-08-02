@@ -243,6 +243,7 @@ protected:
     void sendData(uint8_t* data, size_t dataLen = 0);
     virtual void sendFramebufferData(uint8_t* data, size_t dataLen = 0);
     void writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data = NULL, size_t dataLen = 0);
+
     inline void cs_select()
     {
         gpio_put(m_cs, 0); // Active low

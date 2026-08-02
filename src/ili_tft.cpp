@@ -245,38 +245,19 @@ void ILI948X::sendData(uint8_t data)
 
 void ILI948X::sendFramebufferData(uint8_t* data, size_t dataLen)
 {
-#if defined(DISPLAY_ILI948X_USE_18BIT_PIXELS)
-    cs_select();
-    data_select();
-
-    for (size_t i = 0; i + 1 < dataLen; i += 2)
-    {
-        uint16_t pixel = static_cast<uint16_t>((data[i] << 8) | data[i + 1]);
-        uint8_t r      = (pixel >> 11) & 0x1f;
-        uint8_t g      = (pixel >> 5) & 0x3f;
-        uint8_t b      = pixel & 0x1f;
-
-        writeByte(r << 3);
-        writeByte(g << 2);
-        writeByte(b << 3);
-    }
-
-    cs_deselect();
-#else
     ILI_TFT::sendData(data, dataLen);
-#endif
 }
 #endif // DISPLAY_ILI948X
 
 void ILI_TFT::Clear(uint16_t colour)
 {
-    std::vector<uint16_t> buf(m_dispWidth, __builtin_bswap16(colour));
-    uint8_t* pData = reinterpret_cast<uint8_t*>(buf.data());
-    writeBlock(0, 0, m_dispWidth - 1, m_dispHeight - 1);
-    for (uint16_t iy = 0; iy < m_dispHeight; ++iy)
+    for (auto nQuadrant : GetQuadrants())
     {
-        sendFramebufferData(pData, m_dispWidth * 2);
+        SetQuadrant(nQuadrant);
+        Fill(COLOUR_BLACK);
+        Show();
     }
+    std::cout << "Display cleared." << std::endl;
 }
 
 void ILI_TFT::SetQuadrant(QUADRANT eQuadrant)
@@ -361,26 +342,30 @@ void ILI_TFT::setRotation(uint16_t screenWidth, uint16_t screenHeight, ROTATION 
 
 void ILI_TFT::createFramebuf()
 {
+    ePixelFormat eFormat = RGB565;
+#if defined(DISPLAY_ILI948X_USE_18BIT_PIXELS)
+    eFormat = RGB666;
+#endif
     switch (m_nQuadrants)
     {
     case 1:
-        Framebuf::Initialize(m_dispWidth, m_dispHeight, RGB565, bReverseBytes);
+        Framebuf::Initialize(m_dispWidth, m_dispHeight, eFormat, bReverseBytes);
         quadrantList = {FULL_FRAME};
         break;
     case 2:
         if (m_dispWidth > m_dispHeight)
         {
-            Framebuf::Initialize(m_dispWidth / 2, m_dispHeight, RGB565, bReverseBytes);
+            Framebuf::Initialize(m_dispWidth / 2, m_dispHeight, eFormat, bReverseBytes);
             quadrantList = {LEFT_HALF, RIGHT_HALF};
         }
         else
         {
-            Framebuf::Initialize(m_dispWidth, m_dispHeight / 2, RGB565, bReverseBytes);
+            Framebuf::Initialize(m_dispWidth, m_dispHeight / 2, eFormat, bReverseBytes);
             quadrantList = {UPPER_HALF, LOWER_HALF};
         }
         break;
     case 4:
-        Framebuf::Initialize(m_dispWidth / 2, m_dispHeight / 2, RGB565, bReverseBytes);
+        Framebuf::Initialize(m_dispWidth / 2, m_dispHeight / 2, eFormat, bReverseBytes);
         quadrantList = {UPPER_LEFT, LOWER_LEFT, UPPER_RIGHT, LOWER_RIGHT};
         break;
     default:
@@ -476,7 +461,12 @@ void ILI_TFT::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     uint16_t _h = MIN(Framebuf::height() - y, MAX(1, h));
 
     uint8_t* pSrcData8 = reinterpret_cast<uint8_t*>(Framebuf::buffer());
-    uint16_t fWidth    = Framebuf::width(); // framebuf width
+    if (pSrcData8 == nullptr)
+    {
+        std::cout << "Framebuf::buffer() is nullptr, nothing to show" << std::endl;
+        return;
+    }
+    uint16_t fWidth = Framebuf::width(); // framebuf width
 
     // This is the simplest, gets ~15fps.
     // writeBlock(_x, _y, _x + _w - 1, _y + _h - 1);
@@ -485,30 +475,56 @@ void ILI_TFT::Show(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
     //     data(&pSrcData8[(iy * fWidth * 2) + _x], _w * 2);
     // }
 
-    // This is more complicated, gets ~19fps.
-    static uint16_t tgtBuffer[_MAX_CHUNK_SIZE];
-    uint8_t* pTgtData8     = reinterpret_cast<uint8_t*>(tgtBuffer);
-    uint16_t linesPerChunk = _MAX_CHUNK_SIZE / _w;
+    // This is more complicated, gets ~19fps for RGB565 while supporting RGB666.
+    static uint8_t tgtBuffer[_MAX_CHUNK_SIZE * sizeof(uint16_t)];
+    size_t bytesPerPixel = Framebuf::pixelSize();
+    if (bytesPerPixel == 0)
+    {
+        return;
+    }
+    size_t bytesPerLine     = static_cast<size_t>(_w) * bytesPerPixel;
+    size_t chunkBufferBytes = sizeof(tgtBuffer);
+
+    // Fallback path if a single line does not fit in the staging buffer.
+    if (bytesPerLine > chunkBufferBytes)
+    {
+        writeBlock(disp_x, disp_y, disp_x + _w - 1, disp_y + _h - 1);
+        for (uint16_t iy = 0; iy < _h; ++iy)
+        {
+            size_t nSrcOffset = (static_cast<size_t>(_y + iy) * fWidth * bytesPerPixel) + (static_cast<size_t>(_x) * bytesPerPixel);
+            sendFramebufferData(&pSrcData8[nSrcOffset], bytesPerLine);
+        }
+        return;
+    }
+
+    uint16_t linesPerChunk = static_cast<uint16_t>(chunkBufferBytes / bytesPerLine);
+    if (linesPerChunk == 0)
+    {
+        linesPerChunk = 1;
+    }
     uint16_t numChunks     = _h / linesPerChunk;
     uint16_t linesLeftover = _h - numChunks * linesPerChunk;
 
+    // Tell the display where we are going to write the data
     writeBlock(disp_x, disp_y, disp_x + _w - 1, disp_y + _h - 1);
     for (uint16_t nChunk = 0; nChunk < numChunks; ++nChunk)
     {
         for (uint16_t iy = 0; iy < linesPerChunk; ++iy)
         {
-            uint nSrcOffset = ((_y + (iy + nChunk * linesPerChunk)) * fWidth * 2) + (_x * 2);
-            memcpy(pTgtData8 + iy * _w * 2, &pSrcData8[nSrcOffset], _w * 2);
+            size_t nSrcOffset = (static_cast<size_t>(_y + (iy + nChunk * linesPerChunk)) * fWidth * bytesPerPixel) +
+                                (static_cast<size_t>(_x) * bytesPerPixel);
+            memcpy(tgtBuffer + (static_cast<size_t>(iy) * bytesPerLine), &pSrcData8[nSrcOffset], bytesPerLine);
         }
-        sendFramebufferData(pTgtData8, linesPerChunk * _w * 2);
+        sendFramebufferData(tgtBuffer, static_cast<size_t>(linesPerChunk) * bytesPerLine);
     }
     // Leftover lines
     for (uint16_t iy = 0; iy < linesLeftover; ++iy)
     {
-        uint nSrcOffset = ((_y + (iy + numChunks * linesPerChunk)) * fWidth * 2) + (_x * 2);
-        memcpy(pTgtData8 + iy * _w * 2, &pSrcData8[nSrcOffset], _w * 2);
+        size_t nSrcOffset = (static_cast<size_t>(_y + (iy + numChunks * linesPerChunk)) * fWidth * bytesPerPixel) +
+                            (static_cast<size_t>(_x) * bytesPerPixel);
+        memcpy(tgtBuffer + (static_cast<size_t>(iy) * bytesPerLine), &pSrcData8[nSrcOffset], bytesPerLine);
     }
-    sendFramebufferData(pTgtData8, linesLeftover * _w * 2);
+    sendFramebufferData(tgtBuffer, static_cast<size_t>(linesLeftover) * bytesPerLine);
 }
 
 void ILI_TFT::writeByte(uint8_t data)
