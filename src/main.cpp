@@ -56,7 +56,7 @@
 #define PIN_MISO   12
 #define PIN_BL     13
 #define PIN_RST    15
-#elif defined(PLATFORM_PICO) // Pico, Pico W, Pico 2, Pico 2 W
+#elif defined(PLATFORM_PICO)                // Pico, Pico W, Pico 2, Pico 2 W
 #define SPI_DEVICE spi_default              // Default is SPI0 for Pico
 #define PIN_MISO   PICO_DEFAULT_SPI_RX_PIN  // White  16
 #define PIN_CS     PICO_DEFAULT_SPI_CSN_PIN // Org    17
@@ -74,7 +74,7 @@
 #define PIN_MOSI   PICO_DEFAULT_SPI_TX_PIN  // Blue   3
 #define PIN_RST    27                       // Yellow
 #define PIN_DC     28                       // Green
-// #define PIN_BL     6                        // Gray
+#define PIN_BL     29                       // Gray
 #elif defined(WAVESHARE_RP2040_ZERO)
 // RP2040-Zero has default spi1, which is on the bottom, so use spi0
 #define SPI_DEVICE spi0 // override
@@ -100,9 +100,15 @@ extern "C"
 {
     int _getentropy(void* buffer, size_t length)
     {
+        (void)buffer;
+        (void)length;
         return ENOSYS;
     }
 }
+
+#if !defined(NDEBUG)
+void SplashDemo(ILI_TFT::Shared spDisplay);
+#endif
 
 int main()
 {
@@ -146,7 +152,7 @@ int main()
 #if defined(PIN_BL)
     gpio_init(PIN_BL);
     gpio_set_dir(PIN_BL, GPIO_OUT);
-    gpio_put(PIN_BL, 1); //
+    gpio_put(PIN_BL, 0); // backlight off until display initialized
 #endif
 
 #if defined(SEEED_XIAO_RP2040)
@@ -188,15 +194,25 @@ int main()
     GPS::Shared spGPS = std::make_shared<GPS>(UART0_DEVICE);
 #endif
 
-    // Create the display.  ILI9341 or ILI9488, rotate 270 degrees for landscape orientation
-#if defined(DISPLAY_ILI948X)
-    ILI_TFT::Shared spDisplay = std::make_shared<ILI948X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, DISPLAY_ROTATION);
-#elif defined(DISPLAY_ILI934X)
+    // Create the display. ILI9341 or ILI9488, rotate 270 degrees for landscape.
+#if defined(DISPLAY_ILI934X)
     ILI_TFT::Shared spDisplay = std::make_shared<ILI934X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, DISPLAY_ROTATION);
+#elif defined(DISPLAY_ILI948X)
+    ILI_TFT::Shared spDisplay = std::make_shared<ILI948X>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, DISPLAY_ROTATION);
 #elif defined(DISPLAY_ST7796)
     ILI_TFT::Shared spDisplay = std::make_shared<ST7796>(SPI_DEVICE, PIN_CS, PIN_DC, PIN_RST, DISPLAY_ROTATION);
 #else
 #error Unsupported display specified
+#endif
+
+    spDisplay->Reset();
+    spDisplay->Initialize();
+    spDisplay->Clear(COLOUR_BLACK);
+    gpio_put(PIN_BL, 1);
+
+#if !defined(NDEBUG)
+    SplashDemo(spDisplay);
+    spDisplay->Clear(COLOUR_BLACK);
 #endif
 
     TimeMgr::Shared spTimeMgr = std::make_shared<TimeMgr>(TIME_ZONE);
@@ -206,7 +222,20 @@ int main()
 
     spDevice->Initialize();
 
+    // Run the show
+    spDevice->Run();
+
+#if defined(PLATFORM_PICO_W)
+    cyw43_arch_deinit();
+#endif
+
+    LogInfo("Exiting...");
+    return 0;
+}
+
 #if !defined(NDEBUG)
+void SplashDemo(ILI_TFT::Shared spDisplay)
+{
     // Palette demo splash: show all 16 named RGB565 colors with labels
     {
         struct NamedColour
@@ -253,6 +282,10 @@ int main()
         int cellW      = dispW / cols;
         int cellH      = dispH / rows;
 
+        auto nFontSize = spDisplay->get_recommended_font_size();
+        // Initialize display
+        spDisplay->SetFont(get_recommended_font(nFontSize));
+
         for (auto nQuadrant : spDisplay->GetQuadrants())
         {
             spDisplay->SetQuadrant(nQuadrant);
@@ -269,60 +302,12 @@ int main()
                 spDisplay->FillRect(x, y, w, h, colours[i].value);
                 uint16_t textColour = text_colour_for_bg(colours[i].value);
                 spDisplay->Text(colours[i].name, x + 3, y + 3, textColour);
-                spDisplay->Text(colours[i].hex, x + 3, y + 16, textColour);
+                spDisplay->Text(colours[i].hex, x + 3, y + spDisplay->GetFont()->height + 3, textColour);
             }
 
             spDisplay->Show();
         }
         sleep_ms(5000);
     }
-#endif
-
-#if 0
-    // Font demo: display all 6 fonts sorted by increasing height
-    {
-        const BitmapFont* fonts[6] = {
-            get_terminus_font(8),  // PetMe 8x8
-            get_terminus_font(12), // Terminus 6x12
-            get_terminus_font(14), // Terminus 8x14
-            get_terminus_font(18), // Terminus 10x18
-            get_terminus_font(24), // Terminus 12x24
-            get_terminus_font(32), // Terminus 16x32
-        };
-        const char* labels[6] = {
-            "PetMe 8x8",
-            "Terminus 6x12",
-            "Terminus 8x14",
-            "Terminus 10x18",
-            "Terminus 12x24",
-            "Terminus 16x32",
-        };
-
-        for (auto nQuadrant : spDisplay->GetQuadrants())
-        {
-            spDisplay->SetQuadrant(nQuadrant);
-            spDisplay->Fill(COLOUR_BLACK);
-            int y = 0;
-            for (int i = 0; i < 6; ++i)
-            {
-                if (fonts[i] && y + fonts[i]->height <= 240)
-                {
-                    spDisplay->Text(labels[i], 0, y, COLOUR_AQUA, *fonts[i]);
-                    y += fonts[i]->height + 2;
-                }
-            }
-            spDisplay->Show();
-        }
-        sleep_ms(5000);
-    }
-#endif
-
-    // Run the show
-    spDevice->Run();
-
-#if defined(PLATFORM_PICO_W)
-    cyw43_arch_deinit();
-#endif
-
-    return 0;
 }
+#endif

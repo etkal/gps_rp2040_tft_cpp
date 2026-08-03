@@ -96,9 +96,18 @@ public:
     void text(const char* str, int x, int y, uint16_t color, const BitmapFont& font, int scale = 1);
 
     // Set the default font for text() calls (nullptr to use hardcoded font_petme128_8x8)
-    void SetFont(const BitmapFont* pFont) { m_pFont = pFont; }
-    const BitmapFont* GetFont() const { return m_pFont; }
-    void ClearFont() { m_pFont = nullptr; }
+    void SetFont(const BitmapFont* pFont)
+    {
+        m_pFont = pFont;
+    }
+    const BitmapFont* GetFont() const
+    {
+        return m_pFont;
+    }
+    void ClearFont()
+    {
+        m_pFont = nullptr;
+    }
 
     void* buffer()
     {

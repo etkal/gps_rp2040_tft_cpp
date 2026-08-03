@@ -2,16 +2,16 @@ cmake_minimum_required(VERSION 3.24)
 
 # Set the board type for pin and LED decisions
 #set(PICO_BOARD pico)
-#set(PICO_BOARD pico_w)
 #set(PICO_BOARD pico2)
-set(PICO_BOARD pico2_w)
+set(PICO_BOARD pico_w)
+#set(PICO_BOARD pico2_w)
 #set(PICO_BOARD waveshare_rp2040_zero)
 #set(PICO_BOARD seeed_xiao_rp2040)
 
 # TFT display type - enable one of the following
 #
-add_compile_definitions(DISPLAY_ILI934X)
-#add_compile_definitions(DISPLAY_ILI948X)
+#add_compile_definitions(DISPLAY_ILI934X)
+add_compile_definitions(DISPLAY_ILI948X)
 #add_compile_definitions(DISPLAY_ST7796)
 
 # SPI device speed for the display. They seem to be able to handle 40MHz, but some boards may not be
@@ -20,7 +20,7 @@ add_compile_definitions(DISPLAY_SPI_SPEED=40000000)
 
 # Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments.
 #
-#add_compile_definitions(DISPLAY_PICO_RESTOUCH)
+add_compile_definitions(DISPLAY_PICO_RESTOUCH)
 
 # ILI9341, ILI948X and ST7796 can all use 18-bit pixels (RGB666), but the default is 16-bit (RGB565).
 #
@@ -94,7 +94,10 @@ pico_generate_pio_header(gps_tft
 add_subdirectory(src)
 
 target_include_directories(gps_tft PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR})
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${CMAKE_CURRENT_LIST_DIR}/src/font
+)
 
 target_link_libraries(gps_tft
     pico_stdlib
