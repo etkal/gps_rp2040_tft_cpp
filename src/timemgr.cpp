@@ -1,5 +1,8 @@
 /*
  * Time manager for wall-clock validity and time-zone offset state.
+ *
+ * (c) 2026 Erik Tkal
+ *
  */
 
 #include "timemgr.h"

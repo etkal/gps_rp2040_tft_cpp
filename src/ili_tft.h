@@ -3,7 +3,7 @@
  *
  * Currently supports ILI9341 and ILI9488 displays.
  *
- * (c) 2024 Erik Tkal
+ * (c) 2024-2026 Erik Tkal
  *
  * Modified from Darren Horrocks ILI934X version to fix command/data/select timing,
  * as well as removing the GFXFont support.

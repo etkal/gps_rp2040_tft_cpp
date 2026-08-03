@@ -1,7 +1,7 @@
 /*
  * Framebuffer implementation, rewritten from MicroPython modframebuf.c
  *
- * This version (c) 2024 Erik Tkal
+ * This version (c) 2024-2026 Erik Tkal
  *
  * Original copyright:
  *
