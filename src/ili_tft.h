@@ -71,7 +71,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _RAMRD          0x2e // Memory Read
 #define _MADCTL         0x36 // Memory Access Control
 #define _VSCRSADD       0x37 // Vertical Scrolling Start Address
-#define _PIXSET         0x3a // Pixel Format Set
+#define _COLMOD         0x3a // Pixel Color Mode Set
 #define _PWCTRLA        0xcb // Power Control A
 #define _PWCRTLB        0xcf // Power Control B
 #define _DTCTRLA        0xe8 // Driver Timing Control A
@@ -243,7 +243,7 @@ protected:
     virtual void sendData(uint8_t data) = 0;
 
     void writeByte(uint8_t data);
-    void write(uint8_t cmd, uint8_t* data = NULL, size_t dataLen = 0);
+    void writeCmd(uint8_t cmd, uint8_t* data = NULL, size_t dataLen = 0);
     void sendData(uint8_t* data, size_t dataLen = 0);
     virtual void sendFramebufferData(uint8_t* data, size_t dataLen = 0);
     void writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t* data = NULL, size_t dataLen = 0);
@@ -274,6 +274,7 @@ protected:
     uint16_t m_dispHeight;
     ROTATION m_rotation;
     uint8_t m_madctl;
+    uint8_t m_colmod;
     uint16_t m_nQuadrants;
     std::list<QUADRANT> quadrantList;
     QUADRANT m_eQuadrant;

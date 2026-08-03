@@ -11,6 +11,10 @@
 #include <memory>
 #include "font.h"
 
+#if !defined(DISPLAY_COLOUR_FORMAT)
+#define DISPLAY_COLOUR_FORMAT RGB565
+#endif
+
 typedef enum ePixelFormat
 {
     MVLSB,  // ssd1306

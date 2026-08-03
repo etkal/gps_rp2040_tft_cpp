@@ -92,6 +92,10 @@
 // #define USE_WS2812_PIN 12 // Override
 // #define USE_LED_PIN 16    // Override
 
+#if !defined(DISPLAY_SPI_SPEED)
+#define DISPLAY_SPI_SPEED 20000000 // 20MHz
+#endif
+
 extern "C"
 {
     int _getentropy(void* buffer, size_t length)
@@ -126,7 +130,7 @@ int main()
 #endif
 
     // Set up the TFT display
-    spi_init(SPI_DEVICE, 40000000);
+    spi_init(SPI_DEVICE, DISPLAY_SPI_SPEED);
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);

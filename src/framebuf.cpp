@@ -45,7 +45,7 @@ Framebuf::Framebuf()
       m_nWidth(0),
       m_nHeight(0),
       m_nStride(0),
-      m_eFormat(RGB565),
+      m_eFormat(DISPLAY_COLOUR_FORMAT),
       m_bRevBytes(false),
       m_pFont(nullptr)
 {

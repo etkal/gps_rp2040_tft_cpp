@@ -14,13 +14,17 @@ add_compile_definitions(DISPLAY_ILI934X)
 #add_compile_definitions(DISPLAY_ILI948X)
 #add_compile_definitions(DISPLAY_ST7796)
 
+# SPI device speed for the display. They seem to be able to handle 40MHz, but some boards may not be
+# able to handle that speed. If you have issues, try 20MHz or 10MHz.
+add_compile_definitions(DISPLAY_SPI_SPEED=40000000)
+
 # Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments.
 #
 #add_compile_definitions(DISPLAY_PICO_RESTOUCH)
 
-# ILI948X and ST7796 *can* use 18-bit pixels, the default is 16-bit.
+# ILI9341, ILI948X and ST7796 can all use 18-bit pixels (RGB666), but the default is 16-bit (RGB565).
 #
-#add_compile_definitions(DISPLAY_18BIT_PIXELS)
+#add_compile_definitions(DISPLAY_COLOUR_FORMAT=RGB666)
 
 # Number of quadrants to use, needed for memory usage
 add_compile_definitions(DISPLAY_QUADRANTS=4)

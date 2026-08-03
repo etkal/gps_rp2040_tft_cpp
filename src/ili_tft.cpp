@@ -82,6 +82,16 @@ ILI_TFT::ILI_TFT(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION 
       m_xoff(0),
       m_yoff(0)
 {
+    switch(DISPLAY_COLOUR_FORMAT)
+    {
+        case RGB666:
+            m_colmod = 0x66; // 18-bit/pixel
+            break;
+        case RGB565:
+        default:
+            m_colmod = 0x55; // 16-bit/pixel
+            break;
+    }
 }
 
 #if defined(DISPLAY_ILI934X)
@@ -109,28 +119,28 @@ void ILI934X::Initialize()
     Reset();
 
     // Set the registers
-    write(_RDDSDR, (uint8_t*)"\x03\x80\x02", 3);
-    write(_PWCRTLB, (uint8_t*)"\x00\xc1\x30", 3);
-    write(_PWRONCTRL, (uint8_t*)"\x64\x03\x12\x81", 4);
-    write(_DTCTRLA, (uint8_t*)"\x85\x00\x78", 3);
-    write(_PWCTRLA, (uint8_t*)"\x39\x2c\x00\x34\x02", 5);
-    write(_PRCTRL, (uint8_t*)"\x20", 1);
-    write(_DTCTRLB, (uint8_t*)"\x00\x00", 2);
-    write(_PWCTRL1, (uint8_t*)"\x23", 1);
-    write(_PWCTRL2, (uint8_t*)"\x10", 1);
-    write(_VMCTRL1, (uint8_t*)"\x3e\x28", 2);
-    write(_VMCTRL2, (uint8_t*)"\x86", 1);
-    write(_MADCTL, &m_madctl, 1);
-    write(_PIXSET, (uint8_t*)"\x55", 1);
-    write(_FRMCTR1, (uint8_t*)"\x00\x18", 2);
-    write(_DISCTRL, (uint8_t*)"\x08\x82\x27", 3);
-    write(_ENA3G, (uint8_t*)"\x00", 1);
-    write(_GAMSET, (uint8_t*)"\x01", 1);
-    write(_PGAMCTRL, (uint8_t*)"\x0f\x31\x2b\x0c\x0e\x08\x4e\xf1\x37\x07\x10\x03\x0e\x09\x00", 15);
-    write(_NGAMCTRL, (uint8_t*)"\x00\x0e\x14\x03\x11\x07\x31\xc1\x48\x08\x0f\x0c\x31\x36\x0f", 15);
+    writeCmd(_RDDSDR, (uint8_t*)"\x03\x80\x02", 3);
+    writeCmd(_PWCRTLB, (uint8_t*)"\x00\xc1\x30", 3);
+    writeCmd(_PWRONCTRL, (uint8_t*)"\x64\x03\x12\x81", 4);
+    writeCmd(_DTCTRLA, (uint8_t*)"\x85\x00\x78", 3);
+    writeCmd(_PWCTRLA, (uint8_t*)"\x39\x2c\x00\x34\x02", 5);
+    writeCmd(_PRCTRL, (uint8_t*)"\x20", 1);
+    writeCmd(_DTCTRLB, (uint8_t*)"\x00\x00", 2);
+    writeCmd(_PWCTRL1, (uint8_t*)"\x23", 1);
+    writeCmd(_PWCTRL2, (uint8_t*)"\x10", 1);
+    writeCmd(_VMCTRL1, (uint8_t*)"\x3e\x28", 2);
+    writeCmd(_VMCTRL2, (uint8_t*)"\x86", 1);
+    writeCmd(_MADCTL, &m_madctl, 1);
+    writeCmd(_COLMOD, &m_colmod, 1);
+    writeCmd(_FRMCTR1, (uint8_t*)"\x00\x18", 2);
+    writeCmd(_DISCTRL, (uint8_t*)"\x08\x82\x27", 3);
+    writeCmd(_ENA3G, (uint8_t*)"\x00", 1);
+    writeCmd(_GAMSET, (uint8_t*)"\x01", 1);
+    writeCmd(_PGAMCTRL, (uint8_t*)"\x0f\x31\x2b\x0c\x0e\x08\x4e\xf1\x37\x07\x10\x03\x0e\x09\x00", 15);
+    writeCmd(_NGAMCTRL, (uint8_t*)"\x00\x0e\x14\x03\x11\x07\x31\xc1\x48\x08\x0f\x0c\x31\x36\x0f", 15);
 
-    write(_SLPOUT);
-    write(_DISPON);
+    writeCmd(_SLPOUT);
+    writeCmd(_DISPON);
 }
 
 // ILI934X sends one byte of data
@@ -175,22 +185,18 @@ void ILI948X::Initialize()
     Reset();
 
     // Set the registers
-    write(_DSPINVON);
-    write(_PWCTRL3, (uint8_t*)"\x33", 1);
-    write(_VMCTRL1, (uint8_t*)"\x00\x1e\x80", 3);
-    write(_FRMCTR1, (uint8_t*)"\xb0", 1);
-    write(_PGAMCTRL, (uint8_t*)"\x00\x13\x18\x04\x0f\x06\x3a\x56\x4d\x03\x0a\x06\x30\x3e\x0f", 15);
-    write(_NGAMCTRL, (uint8_t*)"\x00\x13\x18\x01\x11\x06\x38\x34\x4d\x06\x0d\x0b\x31\x37\x0f", 15);
-#if defined(DISPLAY_18BIT_PIXELS)
-    write(_PIXSET, (uint8_t*)"\x66", 1);
-#else
-    write(_PIXSET, (uint8_t*)"\x55", 1);
-#endif
-    write(_SLPOUT);
+    writeCmd(_DSPINVON);
+    writeCmd(_PWCTRL3, (uint8_t*)"\x33", 1);
+    writeCmd(_VMCTRL1, (uint8_t*)"\x00\x1e\x80", 3);
+    writeCmd(_MADCTL, &m_madctl, 1);
+    writeCmd(_COLMOD, &m_colmod, 1);
+    writeCmd(_FRMCTR1, (uint8_t*)"\xb0", 1);
+    writeCmd(_DISCTRL, (uint8_t*)"\x00\x02", 2);
+    writeCmd(_PGAMCTRL, (uint8_t*)"\x00\x13\x18\x04\x0f\x06\x3a\x56\x4d\x03\x0a\x06\x30\x3e\x0f", 15);
+    writeCmd(_NGAMCTRL, (uint8_t*)"\x00\x13\x18\x01\x11\x06\x38\x34\x4d\x06\x0d\x0b\x31\x37\x0f", 15);
+    writeCmd(_SLPOUT);
     sleep_ms(50);
-    write(_DISPON);
-    write(_DISCTRL, (uint8_t*)"\x00\x02", 2);
-    write(_MADCTL, &m_madctl, 1);
+    writeCmd(_DISPON);
 }
 
 // ILI948X command parameters are single-byte values
@@ -235,29 +241,25 @@ void ST7796::Initialize()
     Reset();
 
     // Set the registers
-    write(0x01); // Software reset
+    writeCmd(0x01); // Software reset
     sleep_ms(5);
-    write(_SLPOUT); // Sleep exit
+    writeCmd(_SLPOUT); // Sleep exit
     sleep_ms(120);
-    write(_CSCON, (uint8_t*)"\xC3", 1);
-    write(_CSCON, (uint8_t*)"\x96", 1);
-    write(_MADCTL, &m_madctl, 1);
-#if defined(DISPLAY_18BIT_PIXELS)
-    write(_PIXSET, (uint8_t*)"\x66", 1); // 18-bit pixel format
-#else
-    write(_PIXSET, (uint8_t*)"\x55", 1); // 16-bit pixel format
-#endif
-    write(_DISCTRL, (uint8_t*)"\x00\x02", 2);
-    write(_DTCTRLA, (uint8_t*)"\x40\x8A\x00\x00\x29\x19\xA5\x33", 8);
-    write(_PWCTRL3);
-    write(_VMCTRL1, (uint8_t*)"\x24", 1);
-    write(_PGAMCTRL, (uint8_t*)"\xF0\x09\x13\x12\x12\x2B\x3C\x44\x4B\x1B\x18\x17\x1D\x21", 14);
-    write(_NGAMCTRL, (uint8_t*)"\xF0\x09\x13\x0C\x0D\x27\x3B\x44\x4D\x0B\x17\x17\x1D\x21", 14);
-    write(_CSCON, (uint8_t*)"\x3C", 1);
-    write(_CSCON, (uint8_t*)"\x69", 1);
-    write(_SLPOUT);
+    writeCmd(_CSCON, (uint8_t*)"\xC3", 1);
+    writeCmd(_CSCON, (uint8_t*)"\x96", 1);
+    writeCmd(_MADCTL, &m_madctl, 1);
+    writeCmd(_COLMOD, &m_colmod, 1);
+    writeCmd(_DISCTRL, (uint8_t*)"\x00\x02", 2);
+    writeCmd(_DTCTRLA, (uint8_t*)"\x40\x8A\x00\x00\x29\x19\xA5\x33", 8);
+    writeCmd(_PWCTRL3);
+    writeCmd(_VMCTRL1, (uint8_t*)"\x24", 1);
+    writeCmd(_PGAMCTRL, (uint8_t*)"\xF0\x09\x13\x12\x12\x2B\x3C\x44\x4B\x1B\x18\x17\x1D\x21", 14);
+    writeCmd(_NGAMCTRL, (uint8_t*)"\xF0\x09\x13\x0C\x0D\x27\x3B\x44\x4D\x0B\x17\x17\x1D\x21", 14);
+    writeCmd(_CSCON, (uint8_t*)"\x3C", 1);
+    writeCmd(_CSCON, (uint8_t*)"\x69", 1);
+    writeCmd(_SLPOUT);
     sleep_ms(50);
-    write(_DISPON);
+    writeCmd(_DISPON);
 }
 
 // ILI948X command parameters are single-byte values
@@ -370,10 +372,7 @@ void ILI_TFT::setRotation(uint16_t screenWidth, uint16_t screenHeight, ROTATION 
 
 void ILI_TFT::createFramebuf()
 {
-    ePixelFormat eFormat = RGB565;
-#if defined(DISPLAY_18BIT_PIXELS)
-    eFormat = RGB666;
-#endif
+    ePixelFormat eFormat = DISPLAY_COLOUR_FORMAT;
     switch (m_nQuadrants)
     {
     case 1:
@@ -560,7 +559,7 @@ void ILI_TFT::writeByte(uint8_t data)
     spi_write_blocking(m_spi, &data, 1);
 }
 
-void ILI_TFT::write(uint8_t cmd, uint8_t* data, size_t dataLen)
+void ILI_TFT::writeCmd(uint8_t cmd, uint8_t* data, size_t dataLen)
 {
     cs_select();
     command_select();
@@ -576,15 +575,17 @@ void ILI_TFT::write(uint8_t cmd, uint8_t* data, size_t dataLen)
 
     spi_write_blocking(m_spi, commandBuffer, 1);
 
-    if (data == NULL)
-    {
-        cs_deselect();
-    }
+    cs_deselect();
 
-    // do stuff
+    // Write the data if any. Some commands won't take properly if we blast it all
+    // at once so send individual bytes (this method is not used for framebuffer data,
+    // which is sent in chunks).
     if (data != NULL)
     {
-        sendData(data, dataLen);
+        for (size_t i = 0; i < dataLen; ++i)
+        {
+            sendData(data[i]);
+        }
     }
 }
 
@@ -611,20 +612,13 @@ void ILI_TFT::writeBlock(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uin
     buffer[0] = __builtin_bswap16(x0);
     buffer[1] = __builtin_bswap16(x1);
 
-    write(_CASET);
-    sendData(pBuffer[0]);
-    sendData(pBuffer[1]);
-    sendData(pBuffer[2]);
-    sendData(pBuffer[3]);
+    writeCmd(_CASET, pBuffer, 4);
 
     buffer[0] = __builtin_bswap16(y0);
     buffer[1] = __builtin_bswap16(y1);
 
-    write(_PASET);
-    sendData(pBuffer[0]);
-    sendData(pBuffer[1]);
-    sendData(pBuffer[2]);
-    sendData(pBuffer[3]);
+    writeCmd(_PASET, pBuffer, 4);
 
-    write(_RAMWR, data, dataLen);
+    writeCmd(_RAMWR);
+    sendData(data, dataLen);
 }
