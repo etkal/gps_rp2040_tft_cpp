@@ -1,7 +1,7 @@
 /*
  * GPS class
  *
- * (c) 2025 Erik Tkal
+ * (c) 2025-2026 Erik Tkal
  *
  */
 

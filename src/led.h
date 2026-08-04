@@ -1,7 +1,7 @@
 /*
  * Pico LED class
  *
- * (c) 2025 Erik Tkal
+ * (c) 2025-2026 Erik Tkal
  *
  */
 
@@ -50,14 +50,17 @@ public:
     typedef std::shared_ptr<LED> Shared;
 
     LED() {};
-    virtual ~LED() {};
+    virtual ~LED();
 
     virtual void Initialize()                       = 0;
     virtual void On()                               = 0;
     virtual void Off()                              = 0;
     virtual void SetPixel(uint idx, uint32_t color) = 0;
     virtual void SetIgnore(std::vector<uint32_t> vIgnore) {};
-    void Blink_ms(uint duration = 50);
+    void Blink_ms(uint duration = 50, uint32_t color = led_white);
+
+protected:
+    repeating_timer_t m_LedTimer;
 };
 
 class LED_pico : public LED
@@ -98,21 +101,13 @@ private:
 };
 
 #if defined(PLATFORM_PICO_W)
-class LED_pico_w : public LED
+class LED_pico_w : public LED_pico
 {
 public:
     LED_pico_w(uint pin);
     virtual ~LED_pico_w();
 
-    void Initialize() override {};
-    void On() override;
-    void Off() override;
-    void SetPixel(uint idx, uint32_t color) override;
-    void SetIgnore(std::vector<uint32_t> vIgnore) override;
-
-protected:
-    uint m_nPin;
-    uint32_t m_nColor;
-    std::vector<uint32_t> m_vIgnore;
+    void On();
+    void Off();
 };
 #endif

@@ -3,7 +3,7 @@
  *
  * Currently supports ILI9341 and ILI9488 displays.
  *
- * (c) 2024 Erik Tkal
+ * (c) 2024-2026 Erik Tkal
  *
  * Modified from Darren Horrocks version to fix command/data/select timing, as well
  * as removing the GFXFont support.
@@ -82,15 +82,15 @@ ILI_TFT::ILI_TFT(spi_inst_t* spi, uint8_t cs, uint8_t dc, uint8_t rst, ROTATION 
       m_xoff(0),
       m_yoff(0)
 {
-    switch(DISPLAY_COLOUR_FORMAT)
+    switch (DISPLAY_COLOUR_FORMAT)
     {
-        case RGB666:
-            m_colmod = 0x66; // 18-bit/pixel
-            break;
-        case RGB565:
-        default:
-            m_colmod = 0x55; // 16-bit/pixel
-            break;
+    case RGB666:
+        m_colmod = 0x66; // 18-bit/pixel
+        break;
+    case RGB565:
+    default:
+        m_colmod = 0x55; // 16-bit/pixel
+        break;
     }
 }
 

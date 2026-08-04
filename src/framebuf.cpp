@@ -1,7 +1,7 @@
 /*
  * Framebuffer implementation, rewritten from MicroPython modframebuf.c
  *
- * This version (c) 2024 Erik Tkal
+ * This version (c) 2024-2026 Erik Tkal
  *
  * Original copyright:
  *
@@ -90,16 +90,16 @@ void Framebuf::Initialize(uint16_t nWidth, uint16_t nHeight, ePixelFormat eForma
     case MVLSB:
     case MHLSB:
     case MHMSB:
-        m_pBuf    = new uint8_t[m_nWidth * m_nHeight / 8];
-        m_nStride = (m_nStride + 7) & ~7;
+        m_pBuf       = new uint8_t[m_nWidth * m_nHeight / 8];
+        m_nStride    = (m_nStride + 7) & ~7;
         m_nPixelSize = 1;
         break;
     case RGB565:
-        m_pBuf = new uint16_t[m_nWidth * m_nHeight];
+        m_pBuf       = new uint16_t[m_nWidth * m_nHeight];
         m_nPixelSize = 2;
         break;
     case RGB666:
-        m_pBuf = new pixel666[m_nWidth * m_nHeight];
+        m_pBuf       = new pixel666[m_nWidth * m_nHeight];
         m_nPixelSize = 3;
         break;
     default:
@@ -477,11 +477,11 @@ void Framebuf::text(const char* str, int x, int y, uint16_t color, const BitmapF
         scale = 1;
     }
 
-    const int first = font.firstChar;
-    const int count = font.charCount;
-    const int gw = font.width;
-    const int gh = font.height;
-    const int rowBytes = font.rowBytes();
+    const int first        = font.firstChar;
+    const int count        = font.charCount;
+    const int gw           = font.width;
+    const int gh           = font.height;
+    const int rowBytes     = font.rowBytes();
     const size_t glyphSize = rowBytes * gh;
 
     if (font.colMajor)
@@ -503,7 +503,7 @@ void Framebuf::text(const char* str, int x, int y, uint16_t color, const BitmapF
                 uint8_t col_byte = glyph[rx];
                 for (int ry = 0; ry < gh; ++ry)
                 {
-                    uint8_t mask = 1 << (ry % 8);  // LSB is top
+                    uint8_t mask = 1 << (ry % 8); // LSB is top
                     if (col_byte & mask)
                     {
                         int xbase = x + rx * scale;
@@ -544,7 +544,7 @@ void Framebuf::text(const char* str, int x, int y, uint16_t color, const BitmapF
                 for (int rx = 0; rx < gw; ++rx)
                 {
                     int byteIndex = rx / 8;
-                    uint8_t mask = 0x80 >> (rx % 8);
+                    uint8_t mask  = 0x80 >> (rx % 8);
                     if (rowPtr[byteIndex] & mask)
                     {
                         int xbase = x + rx * scale;
@@ -681,4 +681,3 @@ void Framebuf::scroll(int xstep, int ystep)
         }
     }
 }
-

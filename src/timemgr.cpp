@@ -1,5 +1,8 @@
 /*
  * Time manager for wall-clock validity and time-zone offset state.
+ *
+ * (c) 2026 Erik Tkal
+ *
  */
 
 #include "timemgr.h"
@@ -779,8 +782,9 @@ bool TimeMgr::SetTimeFromNtp(uint32_t timeoutMs)
         LogInfo("Failed to set time from NTP: " + std::string(std::strerror(errno)));
         return false;
     }
+
     aon_timer_start_with_timeofday();
-    RefreshTimeZoneOffset(gpsUtc);
+    RefreshTimeZoneOffset(unixSeconds);
     return true;
 #endif
 }

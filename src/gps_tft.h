@@ -1,7 +1,7 @@
 /*
  * GPS using TFT display
  *
- * (c) 2024 Erik Tkal
+ * (c) 2024-2026 Erik Tkal
  *
  */
 
