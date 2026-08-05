@@ -32,6 +32,8 @@
 #include "font_factory.h"
 #include "timemgr.h"
 
+critical_section_t csLogInfo;
+
 #define UART0_DEVICE uart0                    // Default is uart0
 #define PIN_UART0_TX PICO_DEFAULT_UART_TX_PIN // Default is 0
 #define PIN_UART0_RX PICO_DEFAULT_UART_RX_PIN // Default is 1
@@ -114,6 +116,8 @@ int main()
 {
     stdio_usb_init();
     adc_init();
+
+    critical_section_init(&csLogInfo);
 
 #if !defined(NDEBUG)
     sleep_ms(5000);
@@ -211,8 +215,8 @@ int main()
     gpio_put(PIN_BL, 1);
 
 #if !defined(NDEBUG)
-    SplashDemo(spDisplay);
-    spDisplay->Clear(COLOUR_BLACK);
+    // SplashDemo(spDisplay);
+    // spDisplay->Clear(COLOUR_BLACK);
 #endif
 
     TimeMgr::Shared spTimeMgr = std::make_shared<TimeMgr>(TIME_ZONE);

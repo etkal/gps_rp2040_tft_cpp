@@ -12,6 +12,11 @@
 #include <memory>
 #include <string>
 
+#include "pico/stdlib.h"
+#include "pico/critical_section.h"
+
+extern critical_section_t csLogInfo;
+
 class TimeMgr
 {
 public:

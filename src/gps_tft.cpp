@@ -30,6 +30,7 @@
 #include <iomanip>
 
 #include "pico/stdlib.h"
+#include "pico/multicore.h"
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
 
@@ -65,8 +66,10 @@ GPS_TFT::GPS_TFT(ILI_TFT::Shared spDisplay, GPS::Shared spGPS, LED::Shared spLED
       m_spGPS(spGPS),
       m_spLED(spLED),
       m_spTimeMgr(spTimeMgr),
-      m_nLastTimeSyncAttemptSec(std::numeric_limits<uint64_t>::max())
+      m_nLastTimeSyncAttemptSec(std::numeric_limits<uint64_t>::max()),
+      m_nLastUpdateUISecond(std::numeric_limits<uint64_t>::max())
 {
+    critical_section_init(&m_GpsDataCallbackCS);
 }
 
 GPS_TFT::~GPS_TFT()
@@ -99,7 +102,48 @@ void GPS_TFT::Initialize()
 
 void GPS_TFT::Run()
 {
-    m_spGPS->Run();
+    // Start GPS processing loop on processor core 1
+    static auto sm_spGPS = m_spGPS; // Capture shared pointer for use in lambda
+    multicore_launch_core1([]() {
+        GPS::Shared spGPS = sm_spGPS;
+        spGPS->Run();
+    });
+
+    // Main loop for updating the display
+    while (true)
+    {
+        sleep_ms(50); // Sleep for 100 ms to save power
+
+        const uint64_t nowSec = TimeMgr::CurrentEpochSeconds();
+        if (m_nLastUpdateUISecond == std::numeric_limits<uint64_t>::max())
+        {
+            m_nLastUpdateUISecond = nowSec;
+        }
+        const bool bUpdateUISecondChanged = (nowSec != m_nLastUpdateUISecond);
+        if (bUpdateUISecondChanged)
+        {
+            LogInfo("GPS_TFT::Run() - Updating UI at second: " + std::to_string(nowSec));
+            m_nLastUpdateUISecond = nowSec;
+
+            // Check if we have new GPS data to display, just take the most recent one and discard the rest to avoid UI lag
+            critical_section_enter_blocking(&m_GpsDataCallbackCS);
+            if (!m_qGPSData.empty())
+            {
+                m_spGPSData = m_qGPSData.back();
+                while (!m_qGPSData.empty())
+                {
+                    m_qGPSData.pop();
+                }
+            }
+            critical_section_exit(&m_GpsDataCallbackCS);
+
+            if (m_spGPSData)
+            {
+                updateUI(m_spGPSData);
+                m_spGPSData.reset(); // Free the data
+            }
+        }
+    }
 }
 
 void GPS_TFT::sentenceCB(void* pCtx, std::string strSentence)
@@ -109,8 +153,23 @@ void GPS_TFT::sentenceCB(void* pCtx, std::string strSentence)
 
 void GPS_TFT::gpsDataCB(void* pCtx, GPSData::Shared spGPSData)
 {
+    LogInfo("gpsDataCB received GPS data");
+    // This callback is called from the GPS processing loop when new GPS data is available.
+    // It most likely runs on a different thread/core than the main display loop, so we need
+    // to ensure thread safety.  We will perform a deep copy of the GPSData and then call
+    // updateUI() on the main thread in the run loop possibly based on a timer.
     GPS_TFT* pThis = reinterpret_cast<GPS_TFT*>(pCtx);
-    pThis->updateUI(spGPSData);
+    if (nullptr == pThis)
+    {
+        LogInfo("gpsDataCB: pCtx is null");
+        return;
+    }
+
+    // Make a deep copy of the GPSData to avoid issues with shared ownership and data races
+    critical_section_enter_blocking(&pThis->m_GpsDataCallbackCS);
+    GPSData::Shared spGPSDataCopy = std::make_shared<GPSData>(*spGPSData);
+    pThis->m_qGPSData.push(spGPSDataCopy);
+    critical_section_exit(&pThis->m_GpsDataCallbackCS);
 }
 
 void GPS_TFT::updateUI(GPSData::Shared spGPSData)
@@ -139,7 +198,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
         if (bRetryDue)
         {
             m_nLastTimeSyncAttemptSec = uptimeSec;
-            LogInfo("Attempting GPS time sync");
+            LogInfo("Attempting GPS time sync: " + m_spGPSData->strGPSTimeRaw + " " + m_spGPSData->strGPSDateRaw);
             if (m_spTimeMgr->SetTimeFromGps(m_spGPSData->strGPSTimeRaw, m_spGPSData->strGPSDateRaw))
             {
                 LogInfo("GPS time synchronized");
@@ -243,7 +302,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
         drawText(8, "Free: " + std::to_string(getFreeHeap() / 1000) + "kB", COLOUR_WHITE, true, X_PAD);
 #endif
 
-// blit the framebuf to the display quadrant
+        // blit the framebuf to the display quadrant
         m_spDisplay->Show();
     }
     showTime = time_us_64() - startTime;
@@ -252,7 +311,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
 
     LogInfo("Frame show: " + std::to_string(showTime / 1000) + "ms");
 #if !defined(NDEBUG)
-    std::cout << "Total Heap: " << getTotalHeap() << "  Free Heap: " << getFreeHeap() << std::endl;
+    // std::cout << "Total Heap: " << getTotalHeap() << "  Free Heap: " << getFreeHeap() << std::endl;
 #endif
 }
 

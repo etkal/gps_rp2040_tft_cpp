@@ -13,6 +13,7 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include "pico/critical_section.h"
 
 class SatInfo
 {
@@ -47,6 +48,24 @@ public:
           bExternalAntenna(false)
     {
     }
+
+    GPSData(const GPSData& rhs)
+        : bHasPosition(rhs.bHasPosition),
+          bExternalAntenna(rhs.bExternalAntenna),
+          strLatitude(rhs.strLatitude),
+          strLongitude(rhs.strLongitude),
+          strAltitude(rhs.strAltitude),
+          strNumSats(rhs.strNumSats),
+          strGPSTimeRaw(rhs.strGPSTimeRaw),
+          strGPSDateRaw(rhs.strGPSDateRaw),
+          strGPSTime(rhs.strGPSTime),
+          strMode3D(rhs.strMode3D),
+          strSpeed(rhs.strSpeed),
+          mSatList(rhs.mSatList),
+          vUsedList(rhs.vUsedList)
+    {
+    }
+
     ~GPSData() = default;
 
     bool bHasPosition;
@@ -102,18 +121,26 @@ private:
     static void on_uart_rx();
     static bool getSentence(std::string& strSentence);
 
+    // Callback for timer to send GPS data to the registered callback
+    static bool timerCallback(repeating_timer_t* pTimer);
+    void setDataCallbackTimer();
+    void resetDataCallbackTimer();
+    void cancelDataCallbackTimer();
+
     // GPS object members
-    bool m_bExit;
-    bool m_bGSVInProgress;
+    bool m_bExit {false};
+    bool m_bGSVInProgress {false};
     std::string m_strNumGSV;
-    uint64_t m_nSatListTime;
-    bool m_bSendGpsData;
+    uint64_t m_nSatListTime {0};
+    bool m_bSendGpsData {false};
     GPSData::Shared m_spGPSData;
     SatList m_mSatListIncoming;
     SatList m_mSatListPersistent;
+    repeating_timer_t m_SendDataTimer;
+    critical_section m_GpsDataCallbackCS; // Protects access to GPS data
 
-    sentenceCallback m_pSentenceCallBack;
-    void* m_pSentenceCtx;
-    gpsDataCallback m_pGpsDataCallback;
-    void* m_pGpsDataCtx;
+    sentenceCallback m_pSentenceCallBack {nullptr};
+    void* m_pSentenceCtx {nullptr};
+    gpsDataCallback m_pGpsDataCallback {nullptr};
+    void* m_pGpsDataCtx {nullptr};
 };

@@ -17,6 +17,8 @@
 #include <iostream>
 #include <sstream>
 #include <sys/time.h>
+#include <chrono>
+#include <format>
 
 #include "pico/stdlib.h"
 #include "pico/aon_timer.h"
@@ -657,13 +659,23 @@ std::string TimeMgr::FormatCurrentTimestamp()
         return format_uptime_timestamp();
     }
 
-    const std::time_t now = std::time(nullptr);
-    std::tm tmNow{};
-    localtime_r(&now, &tmNow);
+    auto now = std::chrono::system_clock::now();
+    // Convert to time_t to get whole seconds
+    std::time_t time_t_now = std::chrono::system_clock::to_time_t(now);
+    // Extract the leftover fractional milliseconds
+    auto duration     = now.time_since_epoch();
+    auto seconds      = std::chrono::duration_cast<std::chrono::seconds>(duration);
+    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration - seconds);
+    // Convert whole seconds to local time structure
+    std::tm* local_tm = std::localtime(&time_t_now);
+    // Format the main date/time part using strftime
+    char time_buffer[80];
+    std::strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", local_tm);
+    // Append the zero-padded milliseconds
+    std::stringstream oss;
+    oss << time_buffer << '.' << std::setfill('0') << std::setw(3) << milliseconds.count();
 
-    char buf[32] = {0};
-    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tmNow);
-    return std::string(buf);
+    return oss.str();
 }
 
 std::string TimeMgr::FormatCurrentTimeHMS()
@@ -684,7 +696,9 @@ std::string TimeMgr::FormatCurrentTimeHMS()
 
 void TimeMgr::LogInfo(const std::string& message)
 {
+    critical_section_enter_blocking(&csLogInfo);
     std::cout << '[' << FormatCurrentTimestamp() << "] " << message << std::endl;
+    critical_section_exit(&csLogInfo);
 }
 
 TimeMgr::TimeMgr(std::string timeZoneName)
