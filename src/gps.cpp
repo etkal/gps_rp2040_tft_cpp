@@ -58,21 +58,18 @@ static GPS* sg_pGPS          = NULL;
 static uart_inst_t* sg_pUART = nullptr;
 
 // Static members for RX
-char GPS::sm_szBuffer[GPS_BUFSIZE];
-volatile size_t GPS::sm_iHead      = 0;
-volatile size_t GPS::sm_iNext      = 0;
-volatile size_t GPS::sm_nSentences = 0;
+volatile char GPS::sm_szBuffer[GPS_BUFSIZE];
+volatile size_t GPS::sm_iNext = 0;
+std::queue<std::string> GPS::sm_qSentences;
 
 GPS::GPS(uart_inst_t* pUART0, uart_inst_t* pUART1)
     : m_pUART0(pUART0),
       m_pUART1(pUART1)
 {
-    critical_section_init(&m_GpsDataCallbackCS);
 }
 
 GPS::~GPS()
 {
-    cancelDataCallbackTimer();
 }
 
 void GPS::SetSentenceCallback(void* pCtx, sentenceCallback pCB)
@@ -83,16 +80,14 @@ void GPS::SetSentenceCallback(void* pCtx, sentenceCallback pCB)
 
 void GPS::SetGpsDataCallback(void* pCtx, gpsDataCallback pCB)
 {
-    m_pGpsDataCtx = pCtx;
-    critical_section_enter_blocking(&m_GpsDataCallbackCS);
+    m_pGpsDataCtx      = pCtx;
     m_pGpsDataCallback = pCB;
-    critical_section_exit(&m_GpsDataCallbackCS);
 }
 
 void GPS::Run()
 {
     // Set up GPS
-    uart_set_fifo_enabled(m_pUART0, true);
+    uart_set_fifo_enabled(m_pUART0, false); // Disable FIFO to get immediate RX interrupts
     sg_pGPS     = this; // Allow interrupt handler to call us back
     sg_pUART    = m_pUART0;
     int uartIRQ = m_pUART0 == uart0 ? UART0_IRQ : UART1_IRQ;
@@ -101,21 +96,12 @@ void GPS::Run()
     irq_set_enabled(uartIRQ, true);
     // Now enable the UART to send interrupts - RX only
     uart_set_irqs_enabled(m_pUART0, true, false);
-    setDataCallbackTimer(); // Start the timer to send GPS data to the registered callback
 
     std::string strSentence;
     bool bSentAntennaCommands = false;
     while (!m_bExit)
     {
-        if (m_bSendGpsData)
-        {
-            cancelDataCallbackTimer(); // Cancel the timer to avoid re-entrancy
-            m_bSendGpsData = false;
-            if (NULL != m_pGpsDataCallback && m_spGPSData)
-            {
-                (*m_pGpsDataCallback)(m_pGpsDataCtx, m_spGPSData);
-            }
-        }
+        tight_loop_contents();
 
         // Read sentence from GPS device
         if (getSentence(strSentence))
@@ -138,8 +124,15 @@ void GPS::Run()
                 uart_puts(m_pUART0, strCDCMD.c_str());
                 bSentAntennaCommands = true;
             }
-            // We have data, restart the send data timer
-            resetDataCallbackTimer();
+        }
+
+        if (m_bSendGpsData)
+        {
+            m_bSendGpsData = false;
+            if (NULL != m_pGpsDataCallback)
+            {
+                (*m_pGpsDataCallback)(m_pGpsDataCtx, m_spGPSData);
+            }
         }
     }
 }
@@ -288,6 +281,7 @@ bool GPS::processSentence(std::string strSentence)
     }
     case kGPRMC: // Recommended minimum specific GPS/Transit data
     {
+        m_bSendGpsData = true;
         if (!vElems[1].empty())
         {
             std::string& t             = vElems[1];
@@ -296,7 +290,7 @@ bool GPS::processSentence(std::string strSentence)
         }
         else
         {
-            m_spGPSData->strGPSTime = "";
+            m_spGPSData->strGPSTime    = "";
             m_spGPSData->strGPSTimeRaw.clear();
         }
 
@@ -423,14 +417,18 @@ void GPS::on_uart_rx()
     uart_set_irqs_enabled(sg_pUART, false, false);
     while (uart_is_readable(sg_pUART))
     {
-        char ch                 = uart_getc(sg_pUART);
-        sm_szBuffer[sm_iNext++] = ch;
-        sm_iNext %= GPS_BUFSIZE;
+        char ch = uart_getc(sg_pUART);
+        sm_szBuffer[sm_iNext] = ch;
+        sm_iNext += 1;
+        if (sm_iNext >= GPS_BUFSIZE)
+        {
+            sm_iNext = 0; // wrap around, will sync up eventually
+        }
         if (ch == '\n')
         {
-            sm_szBuffer[sm_iNext++] = '\0';
-            sm_iNext %= GPS_BUFSIZE;
-            sm_nSentences += 1;
+            sm_szBuffer[sm_iNext] = '\0';
+            sm_qSentences.push(std::string((char *)sm_szBuffer));
+            sm_iNext = 0;
         }
     }
     uart_set_irqs_enabled(sg_pUART, true, false);
@@ -440,42 +438,13 @@ bool GPS::getSentence(std::string& strSentence)
 {
     bool bFound = false;
     uart_set_irqs_enabled(sg_pUART, false, false);
-    if (sm_nSentences > 0)
+    if (!sm_qSentences.empty())
     {
-        strSentence.clear();
-        for (size_t i = sm_iHead; '\0' != sm_szBuffer[i]; i = (i + 1) % GPS_BUFSIZE)
-        {
-            strSentence += sm_szBuffer[i];
-        }
-        sm_iHead = (sm_iHead + strSentence.length() + 1) % GPS_BUFSIZE;
-        sm_nSentences -= 1;
+        strSentence = sm_qSentences.front();
+        sm_qSentences.pop();
         bFound = true;
     }
     uart_set_irqs_enabled(sg_pUART, true, false);
 
     return bFound;
-}
-
-bool GPS::timerCallback(repeating_timer_t* pTimer)
-{
-    LogInfo("GPS::timerCallback() - Timer callback triggered");
-    GPS* pThis            = reinterpret_cast<GPS*>(pTimer->user_data);
-    pThis->m_bSendGpsData = true;
-    return false; // Don't repeat, we will reset the timer in Run()
-}
-
-void GPS::setDataCallbackTimer()
-{
-    add_repeating_timer_ms(250, GPS::timerCallback, reinterpret_cast<void*>(this), &m_SendDataTimer);
-}
-
-void GPS::resetDataCallbackTimer()
-{
-    cancel_repeating_timer(&m_SendDataTimer);
-    setDataCallbackTimer();
-}
-
-void GPS::cancelDataCallbackTimer()
-{
-    cancel_repeating_timer(&m_SendDataTimer);
 }

@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <pico/stdlib.h>
+#include <pico/critical_section.h>
 #include <hardware/gpio.h>
 #include <hardware/uart.h>
 #include <queue>
@@ -93,5 +94,4 @@ private:
     uint64_t m_nLastTimeSyncAttemptSec;
     critical_section m_GpsDataCallbackCS; // Protects access to GPS data queue
     uint64_t m_nLastUpdateUISecond;
-
 };

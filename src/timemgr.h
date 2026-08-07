@@ -12,11 +12,6 @@
 #include <memory>
 #include <string>
 
-#include "pico/stdlib.h"
-#include "pico/critical_section.h"
-
-extern critical_section_t csLogInfo;
-
 class TimeMgr
 {
 public:
@@ -27,6 +22,7 @@ public:
     static bool ResolveTimeZoneOffset(const std::string& timeZoneName, std::time_t whenUtc, float& offsetHours, bool* pIsDst = nullptr);
     static bool IsWallClockValid();
     static uint64_t CurrentEpochSeconds();
+    static bool IsGpsTimeDateWithinOneSecond(const std::string& gpsTime, const std::string& gpsDate);
     static std::string FormatCurrentTimestamp();
     static std::string FormatCurrentTimeHMS();
     static void LogInfo(const std::string& message);

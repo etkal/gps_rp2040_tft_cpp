@@ -16,9 +16,8 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <sys/time.h>
 #include <chrono>
-#include <format>
+#include <sys/time.h>
 
 #include "pico/stdlib.h"
 #include "pico/aon_timer.h"
@@ -645,11 +644,32 @@ bool TimeMgr::IsWallClockValid()
 
 uint64_t TimeMgr::CurrentEpochSeconds()
 {
+    return static_cast<uint64_t>(std::time(nullptr));
+}
+
+bool TimeMgr::IsGpsTimeDateWithinOneSecond(const std::string& gpsTime, const std::string& gpsDate)
+{
     if (!IsWallClockValid())
     {
-        return 0;
+        return false;
     }
-    return static_cast<uint64_t>(std::time(nullptr));
+
+    int hour   = 0;
+    int minute = 0;
+    int second = 0;
+    int year   = 0;
+    int month  = 0;
+    int day    = 0;
+
+    if (!parse_gprmc_time(gpsTime, hour, minute, second) || !parse_gprmc_date(gpsDate, year, month, day) || !is_valid_ymd(year, month, day))
+    {
+        return false;
+    }
+
+    const std::time_t gpsUtc = utc_time_from_ymdhms(year, month, day, hour, minute, second);
+    const std::time_t nowUtc = std::time(nullptr);
+    const int64_t diff       = static_cast<int64_t>(nowUtc) - static_cast<int64_t>(gpsUtc);
+    return diff >= -1 && diff <= 1;
 }
 
 std::string TimeMgr::FormatCurrentTimestamp()
@@ -659,22 +679,15 @@ std::string TimeMgr::FormatCurrentTimestamp()
         return format_uptime_timestamp();
     }
 
-    auto now = std::chrono::system_clock::now();
-    // Convert to time_t to get whole seconds
-    std::time_t time_t_now = std::chrono::system_clock::to_time_t(now);
-    // Extract the leftover fractional milliseconds
-    auto duration     = now.time_since_epoch();
-    auto seconds      = std::chrono::duration_cast<std::chrono::seconds>(duration);
-    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration - seconds);
-    // Convert whole seconds to local time structure
-    std::tm* local_tm = std::localtime(&time_t_now);
-    // Format the main date/time part using strftime
-    char time_buffer[80];
-    std::strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", local_tm);
-    // Append the zero-padded milliseconds
-    std::stringstream oss;
-    oss << time_buffer << '.' << std::setfill('0') << std::setw(3) << milliseconds.count();
+    const auto now             = std::chrono::system_clock::now();
+    const std::time_t nowTimeT = std::chrono::system_clock::to_time_t(now);
+    std::tm tmNow{};
+    localtime_r(&nowTimeT, &tmNow);
 
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+    std::ostringstream oss;
+    oss << std::setfill('0') << std::setw(2) << tmNow.tm_hour << ':' << std::setw(2) << tmNow.tm_min << ':' << std::setw(2) << tmNow.tm_sec
+        << '.' << std::setw(3) << ms.count();
     return oss.str();
 }
 
@@ -696,9 +709,7 @@ std::string TimeMgr::FormatCurrentTimeHMS()
 
 void TimeMgr::LogInfo(const std::string& message)
 {
-    critical_section_enter_blocking(&csLogInfo);
     std::cout << '[' << FormatCurrentTimestamp() << "] " << message << std::endl;
-    critical_section_exit(&csLogInfo);
 }
 
 TimeMgr::TimeMgr(std::string timeZoneName)

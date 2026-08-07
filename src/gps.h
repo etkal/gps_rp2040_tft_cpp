@@ -13,7 +13,7 @@
 #include <vector>
 #include <map>
 #include <memory>
-#include "pico/critical_section.h"
+#include <queue>
 
 class SatInfo
 {
@@ -48,7 +48,7 @@ public:
           bExternalAntenna(false)
     {
     }
-
+    
     GPSData(const GPSData& rhs)
         : bHasPosition(rhs.bHasPosition),
           bExternalAntenna(rhs.bExternalAntenna),
@@ -86,7 +86,7 @@ public:
 typedef void (*sentenceCallback)(void* pCtx, std::string strSentence);
 typedef void (*gpsDataCallback)(void* pCtx, GPSData::Shared spGPSData);
 
-auto constexpr GPS_BUFSIZE = 4096; // Circular buffer size
+auto constexpr GPS_BUFSIZE = 256; // Max NMEA-0183 sentence length is actually 82 characters
 
 class GPS
 {
@@ -114,18 +114,11 @@ private:
     uart_inst_t* m_pUART1; // output echo
 
     // RX buffer management
-    static char sm_szBuffer[GPS_BUFSIZE];
-    static volatile size_t sm_iHead;
+    static volatile char sm_szBuffer[GPS_BUFSIZE];
     static volatile size_t sm_iNext;
-    static volatile size_t sm_nSentences;
+    static std::queue<std::string> sm_qSentences;
     static void on_uart_rx();
     static bool getSentence(std::string& strSentence);
-
-    // Callback for timer to send GPS data to the registered callback
-    static bool timerCallback(repeating_timer_t* pTimer);
-    void setDataCallbackTimer();
-    void resetDataCallbackTimer();
-    void cancelDataCallbackTimer();
 
     // GPS object members
     bool m_bExit {false};
@@ -136,8 +129,6 @@ private:
     GPSData::Shared m_spGPSData;
     SatList m_mSatListIncoming;
     SatList m_mSatListPersistent;
-    repeating_timer_t m_SendDataTimer;
-    critical_section m_GpsDataCallbackCS; // Protects access to GPS data
 
     sentenceCallback m_pSentenceCallBack {nullptr};
     void* m_pSentenceCtx {nullptr};

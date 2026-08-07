@@ -112,8 +112,7 @@ void GPS_TFT::Run()
     // Main loop for updating the display
     while (true)
     {
-        sleep_ms(50); // Sleep for 100 ms to save power
-
+        sleep_ms(10); // Sleep for 10ms to avoid busy waiting
         const uint64_t nowSec = TimeMgr::CurrentEpochSeconds();
         if (m_nLastUpdateUISecond == std::numeric_limits<uint64_t>::max())
         {
@@ -122,7 +121,7 @@ void GPS_TFT::Run()
         const bool bUpdateUISecondChanged = (nowSec != m_nLastUpdateUISecond);
         if (bUpdateUISecondChanged)
         {
-            LogInfo("GPS_TFT::Run() - Updating UI at second: " + std::to_string(nowSec));
+            LogInfo("GPS_TFT - Updating UI");
             m_nLastUpdateUISecond = nowSec;
 
             // Check if we have new GPS data to display, just take the most recent one and discard the rest to avoid UI lag
@@ -153,7 +152,7 @@ void GPS_TFT::sentenceCB(void* pCtx, std::string strSentence)
 
 void GPS_TFT::gpsDataCB(void* pCtx, GPSData::Shared spGPSData)
 {
-    LogInfo("gpsDataCB received GPS data");
+    LogInfo("GPS_TFT - received GPS data");
     // This callback is called from the GPS processing loop when new GPS data is available.
     // It most likely runs on a different thread/core than the main display loop, so we need
     // to ensure thread safety.  We will perform a deep copy of the GPSData and then call
@@ -198,7 +197,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
         if (bRetryDue)
         {
             m_nLastTimeSyncAttemptSec = uptimeSec;
-            LogInfo("Attempting GPS time sync: " + m_spGPSData->strGPSTimeRaw + " " + m_spGPSData->strGPSDateRaw);
+            LogInfo("Attempting GPS time sync");
             if (m_spTimeMgr->SetTimeFromGps(m_spGPSData->strGPSTimeRaw, m_spGPSData->strGPSDateRaw))
             {
                 LogInfo("GPS time synchronized");
@@ -276,12 +275,12 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
 #endif
 
         // Draw clock
-        if (!spGPSData->strGPSTime.empty())
+        if (TimeMgr::IsWallClockValid())
         {
             uint lineHeight = getCharHeight() + 1;
             uint radius     = m_spDisplay->ShorterSide() / 8;
             uint xPos       = m_spDisplay->Landscape() ? nWidth / 2 : X_PAD + getCharWidth() * 3;
-            drawClock(xPos, lineHeight * PAD_CHARS_Y, radius, spGPSData->strGPSTime);
+            drawClock(xPos, lineHeight * PAD_CHARS_Y, radius, TimeMgr::FormatCurrentTimeHMS());
         }
 
         // Draw bar graph
@@ -311,7 +310,7 @@ void GPS_TFT::updateUI(GPSData::Shared spGPSData)
 
     LogInfo("Frame show: " + std::to_string(showTime / 1000) + "ms");
 #if !defined(NDEBUG)
-    // std::cout << "Total Heap: " << getTotalHeap() << "  Free Heap: " << getFreeHeap() << std::endl;
+    std::cout << "Total Heap: " << getTotalHeap() << "  Free Heap: " << getFreeHeap() << std::endl;
 #endif
 }
 
