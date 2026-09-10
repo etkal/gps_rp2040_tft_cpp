@@ -217,7 +217,11 @@ void ILI948X::Initialize()
     Reset();
 
     // Set the registers
+#if defined(DISPLAY_PICO_RESTOUCH)
     writeCmd(_DSPINVON);
+#else
+    writeCmd(_DSPINVOFF);
+#endif
     writeCmd(_PWCTRL3, (uint8_t*)"\x33", 1);
     writeCmd(_VMCTRL1, (uint8_t*)"\x00\x1e\x80", 3);
     writeCmd(_MADCTL, &m_madctl, 1);

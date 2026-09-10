@@ -15,15 +15,19 @@ endif()
 cmake_minimum_required(VERSION 3.24)
 
 # Set the board type for pin and LED decisions
-#set(PICO_BOARD pico)
+set(PICO_BOARD pico)
 #set(PICO_BOARD pico2)
-set(PICO_BOARD pico_w)
+#set(PICO_BOARD pico_w)
 #set(PICO_BOARD pico2_w)
 #set(PICO_BOARD waveshare_rp2040_zero)
 #set(PICO_BOARD seeed_xiao_rp2040)
 
-# Use this to enable multicore support for the RP2040. On some hardware this can improve performance.
-add_compile_definitions(USE_MULTICORE)
+# Run the GPS processing on the second core if desired. The gpsmon implementation cannot
+# utilize this as the wifi stack uses the primary core.
+#add_compile_definitions(GPS_ON_CORE_1)
+
+# Run the display on the second core. Alternative for the above.
+add_compile_definitions(DISPLAY_ON_CORE_1)
 
 # GPS data callback delay (in milliseconds). On some hardware this is necessary in order to
 # keep the display update from interfering with the received UART data (even if on another core).
@@ -42,11 +46,11 @@ add_compile_definitions(DISPLAY_SPI_SPEED=40000000)
 
 # Set the following if using Waveshare Pico-ResTouch-LCD for GPIO assignments.
 #
-add_compile_definitions(DISPLAY_PICO_RESTOUCH)
+#add_compile_definitions(DISPLAY_PICO_RESTOUCH)
 
 # ILI9341, ILI948X and ST7796 can all use 18-bit pixels (RGB666), but the default is 16-bit (RGB565).
 #
-#add_compile_definitions(DISPLAY_COLOUR_FORMAT=RGB666)
+add_compile_definitions(DISPLAY_COLOUR_FORMAT=RGB666)
 
 # Number of quadrants to use, needed for memory usage
 add_compile_definitions(DISPLAY_QUADRANTS=4)
